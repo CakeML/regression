@@ -441,7 +441,7 @@ structure API = struct
   val send = system_output o curl_cmd
   fun curl_log id file =
     (curl_path,["--silent","--show-error","--request","POST",
-                "--data",String.concat["@",file],
+                "--data-binary",String.concat["@",file],
                 String.concat[endpoint,"/log/",Int.toString id]])
   fun append id line =
     let val response = send (Append(id,line))
