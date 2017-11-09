@@ -2,13 +2,19 @@
   Acquire the lock that is used by the server to run a command without
   interfering with the server
 *)
-use "regressionLib.sml";
-open regressionLib
+use "serverLib.sml";
+open serverLib
 open Posix.Process
+
+fun assert b s =
+  if b then () else
+  (TextIO.output(TextIO.stdErr,s);
+   OS.Process.exit OS.Process.failure)
+
 fun main () =
   let
     val args = CommandLine.arguments ()
-    val () = assert (not (List.null args)) ["usage: ./flock cmd args ..."]
+    val () = assert (not (List.null args)) "usage: ./flock cmd args ...\n"
     val fd = acquire_lock ()
   in
     case fork() of
@@ -16,7 +22,7 @@ fun main () =
     | SOME pid =>
       let
         val (pid',status) = wait ()
-        val () = assert (pid=pid') ["wrong child"]
+        val () = assert (pid=pid') "wrong child\n"
         val () = Posix.IO.close fd
       in
         case status of
