@@ -1,36 +1,60 @@
 (*
-  Implements the server-side regression-test API as a CGI program.
-  The API is for workers to view and manipulate the job queues.
+Implements the server-side regression-test API as a CGI program.
+
+The API is for workers to view and manipulate the job queues.
+It also provides a hook for refreshing the queues:
+  If there are new jobs on GitHub, they will be added as waiting.
+  If there are stale jobs, they will be removed.
+
+each job is on exactly one list: waiting, active, stopped
+if a job changes list, it can only move to the right
+
+Refreshing the queues:
+
+  Behaviours:
+
+    1. add a job to the waiting list:
+      - create a new job id
+      - the commits for the job satisfy the following:
+        - they are the current commits (on GitHub) for a particular target
+        - there are no other jobs with the same commits
+
+    2. remove a job from the waiting list:
+      - if it does not have the current commits (on GitHub) for any target, or
+      - if there are other active or waiting jobs for the same commits
+          (this should never happen -- not checking it currently)
+          (we don't count duplicate stopped jobs since
+           they might have been retried)
+      - the removed job's id number could be re-used (but is that worthwhile?)
+      - the race with workers trying to obtain this job is handled by the global
+        lock on queues. either the job is claimed before it can be removed, or
+        removed before it can be claimed.
+
+    3. move a job from active to stopped:
+      - if the time since it started is too long
+      - adds a note, "timed out", to the output
+      - does the stop API actions
+
+  Targets:
+
+    CakeML:
+      - branch "master"
+      - each open, mergeable pull request
+        in this case, there are two commits:
+          - the pull request commit
+          - the master commit to merge into
+        but they move together (as captured by the state of the PR on GitHub)
+    HOL:
+      - branch "master"
 *)
-use "regressionLib.sml";
+use "serverLib.sml";
 
-open regressionLib
-
-val text_response_header = "Content-Type:text/plain\n\n"
-
-fun text_response s =
-  let
-    val () = TextIO.output(TextIO.stdOut, text_response_header)
-    val () = TextIO.output(TextIO.stdOut, s)
-  in () end
-
-fun cgi_die ls =
-  (List.app (fn s => TextIO.output(TextIO.stdOut, s))
-     (text_response_header::"Error:\n"::ls);
-   TextIO.output(TextIO.stdOut,"\n");
-   OS.Process.exit OS.Process.success;
-   raise (Fail "impossible"))
-
-fun cgi_assert b ls = if b then () else cgi_die ls
-
-val waiting = read_list cgi_die "waiting"
-val active  = read_list cgi_die "active"
-val stopped = read_list cgi_die "stopped"
+open serverLib
 
 fun job id =
   let
     val f = Int.toString id
-    val q = queue_of_job cgi_die f
+    val q = queue_of_job f
   in
     OS.Path.concat(q,f)
   end
@@ -103,6 +127,20 @@ fun retry id =
     val () = TextIO.closeIn inp
   in id end
 
+fun refresh () =
+  let
+    val snapshots = get_current_snapshots ()
+    val () = List.app (remove_if_superseded snapshots) (waiting())
+    val to_queue =
+      filter_existing snapshots
+        [("waiting",waiting),
+         ("active" ,active ),
+         ("stopped",stopped)]
+    val () = if List.null to_queue then ()
+             else ignore (List.foldl add_waiting (next_job_id [waiting,active,stopped]) to_queue)
+    (* TODO: stop timed out jobs *)
+  in () end
+
 datatype request_api = Get of api | Post of id * string
 
 fun get_api () =
@@ -131,6 +169,7 @@ in
         Waiting => id_list (waiting())
       | Active => id_list (active())
       | Stopped => id_list (stopped())
+      | Refresh => (refresh (); refresh_response)
       | Job id => file_to_string (job id)
       | Claim(id,name) => (claim id name; claim_response)
       | Append(id,line) => (append id line; append_response)
@@ -148,7 +187,7 @@ fun dispatch_req (Get api) = dispatch api
 
 fun main () =
   let
-    val () = ensure_queue_dirs cgi_die
+    val () = ensure_queue_dirs ()
   in
     case get_api () of
       NONE => cgi_die ["bad usage"]

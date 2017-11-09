@@ -64,9 +64,76 @@
     7. Stop the job
 *)
 
-use "regressionLib.sml";
+use "apiLib.sml";
 
-open regressionLib
+open apiLib
+
+fun warn ls = (
+  TextIO.output(TextIO.stdErr,String.concat ls);
+  TextIO.output(TextIO.stdErr,"\n"))
+
+fun die ls = (
+  warn ls;
+  OS.Process.exit OS.Process.failure;
+  raise (Fail "impossible"))
+
+fun diag ls = (
+  TextIO.output(TextIO.stdOut,String.concat ls);
+  TextIO.output(TextIO.stdOut,"\n"))
+
+fun assert b ls = if b then () else die ls
+
+fun file_to_line f =
+  let
+    val inp = TextIO.openIn f
+    val lopt = TextIO.inputLine inp
+    val () = TextIO.closeIn inp
+  in
+    case lopt of NONE => ""
+    | SOME line => String.extract(line,0,SOME(String.size line - 1))
+  end
+
+fun output_to_file (f,s) =
+  let
+    val out = TextIO.openOut f
+    val () = TextIO.output(out,s)
+  in TextIO.closeOut out end
+
+val system_output = system_output die
+
+val capture_file = "regression.log"
+val timing_file = "timing.log"
+
+fun system_capture_with redirector cmd_args =
+  let
+    (* This could be implemented using Posix without relying on the shell *)
+    val status = OS.Process.system(String.concat[cmd_args, redirector, capture_file])
+  in OS.Process.isSuccess status end
+
+val system_capture = system_capture_with " &>"
+val system_capture_append = system_capture_with " &>>"
+
+val poll_delay = Time.fromSeconds(60 * 30)
+
+structure API = struct
+  val endpoint = "https://cakeml.org/regression.cgi"
+  fun curl_cmd api = (curl_path,
+    ["--silent","--show-error"] @ api_curl_args api @ [String.concat[endpoint,api_to_string api]])
+  val send = system_output o curl_cmd
+  fun curl_log id file =
+    (curl_path,["--silent","--show-error","--request","POST",
+                "--data-binary",String.concat["@",file],
+                String.concat[endpoint,"/log/",Int.toString id]])
+  fun append id line =
+    let val response = send (Append(id,line))
+    in assert (response=append_response) ["Unexpected append response: ",response] end
+  fun stop id =
+    let val response = send (Stop id)
+    in assert (response=stop_response) ["Unexpected stop response: ",response] end
+  fun log id file =
+    let val response = system_output (curl_log id file)
+    in assert (response=log_response) ["Unexpected log response: ",response] end
+end
 
 val HOLDIR = "HOL"
 val hol_remote = "https://github.com/HOL-Theorem-Prover/HOL.git"
@@ -254,8 +321,8 @@ fun work resumed id =
     if String.isPrefix "Error:" response
     then (warn [response]; false) else
     let
-      val invalid = ["job ",jid," returned invalid response"]
-      val {bcml,bhol} = read_bare_snapshot invalid (TextIO.openString response)
+      val {bcml,bhol} = read_bare_snapshot (TextIO.openString response)
+                        handle Option => die["job ",jid," returned invalid response"]
       val built_hol =
         if resumed then validate_resume jid bhol bcml
         else let
