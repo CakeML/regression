@@ -5,10 +5,10 @@
     /usr/bin/curl, /usr/bin/git, /usr/bin/time, poly
 
   Also assumes the default shell (/bin/sh) understands
-    ENV=val ... cmd [args ...] &>file
+    [var=val] cmd [args ...] >file 2>&1
   to mean redirect both stdout and stderr to file when running
-  cmd on args in an environment augmented by the (ENV,val) pairs,
-  and &>> instead of &> appends to file instead of truncating it.
+  cmd on args in an environment augmented with var set to val (if present),
+  and >>file instead of >file appends to file instead of truncating it.
 
   Can be run either as a daemon (default) that will keep looking for work by
   polling or as a one-shot command (--no-poll) that will do nothing if no work
@@ -107,11 +107,11 @@ val timing_file = "timing.log"
 fun system_capture_with redirector cmd_args =
   let
     (* This could be implemented using Posix without relying on the shell *)
-    val status = OS.Process.system(String.concat[cmd_args, redirector, capture_file])
+    val status = OS.Process.system(String.concat[cmd_args, redirector, capture_file, " 2>&1"])
   in OS.Process.isSuccess status end
 
-val system_capture = system_capture_with " &>"
-val system_capture_append = system_capture_with " &>>"
+val system_capture = system_capture_with " >"
+val system_capture_append = system_capture_with " >>"
 
 val poll_delay = Time.fromSeconds(60 * 30)
 
