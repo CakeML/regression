@@ -6,8 +6,8 @@ Reference:
   waiting:
     returns space-separated list of ids of waiting jobs
 
-  active:
-    returns space-separated list of ids of active jobs
+  running:
+    returns space-separated list of ids of running jobs
 
   stopped:
     returns space-separated list of ids of stopped jobs
@@ -33,25 +33,25 @@ Reference:
     record <line> as additional output for job <id> with a timestamp.
     <line> is in the query string.
     returns "appended"
-    fails if <id> is not currently active
+    fails if <id> is not currently running
 
   log id data:
     append <data> as additional output for job <id>.
     <data> is POST data.
     returns "logged"
-    fails if <id> is not currently active
+    fails if <id> is not currently running
 
   stop id:
     mark job <id> as stopped
     returns "stopped"
     sends email with output
-    fails if <id> is not currently active
+    fails if <id> is not currently running
 
   retry id:
     create a new job with the same commits as job <id>
     returns "retried as job <new id>"
     fails if <id> is not currently stopped
-    fails if there is already an active or waiting job for the same commits
+    fails if there is already a running or waiting job for the same commits
 
   all failures return text starting with "Error:"
 *)
@@ -68,7 +68,7 @@ type line = string
 fun check_id f id =
   0 <= id andalso Int.toString id = f
 
-datatype api = Waiting | Active | Stopped | Refresh
+datatype api = Waiting | Running | Stopped | Refresh
              | Job of id | Claim of id * worker_name
              | Append of id * line (* not including newline *)
              | Stop of id | Retry of id
@@ -102,7 +102,7 @@ fun percent_decode s =
   end
 
 fun api_to_string Waiting = "/waiting"
-  | api_to_string Active = "/active"
+  | api_to_string Running = "/running"
   | api_to_string Stopped = "/stopped"
   | api_to_string Refresh = "/refresh"
   | api_to_string (Job id) = String.concat["/job/",Int.toString id]
@@ -128,7 +128,7 @@ fun read_query prefix s =
 
 fun api_from_string s q =
   if s = "/waiting" then SOME Waiting
-  else if s = "/active" then SOME Active
+  else if s = "/running" then SOME Running
   else if s = "/stopped" then SOME Stopped
   else if s = "/refresh" then SOME Refresh
   else (case String.tokens (equal #"/") s of

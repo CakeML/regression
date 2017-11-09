@@ -10,7 +10,7 @@
   to ensure this.
 
   Job lists are implemented as three directories:
-    waiting, active, stopped
+    waiting, running, stopped
 
   Jobs are implemented as files with their id as filename.
 
@@ -150,7 +150,7 @@ in
     in () end
 end
 
-val queue_dirs = ["waiting","active","stopped"]
+val queue_dirs = ["waiting","running","stopped"]
 
 local
   open OS.FileSys
@@ -176,17 +176,30 @@ in
       val dir = openDir q handle OS.SysErr _ => cgi_die ["could not open ",q," directory"]
       fun badFile f = cgi_die ["found bad filename ",f," in ",q]
       fun loop acc =
-        case readDir dir of NONE => acc
+        case readDir dir of NONE => acc before closeDir dir
       | SOME f => if isDir (OS.Path.concat(q,f)) handle OS.SysErr _ => cgi_die [f, " disappeared from ", q, " unexpectedly"]
                   then cgi_die ["found unexpected directory ",f," in ",q]
                   else case Int.fromString f of NONE => badFile f
                        | SOME id => if check_id f id then loop (id::acc) else badFile f
       val ids = loop []
     in ids end
+  fun clear_list q =
+    let
+      val dir = openDir q handle OS.SysErr _ => cgi_die ["could not open ",q," directory"]
+      fun loop () =
+        case readDir dir of NONE => closeDir dir
+      | SOME f =>
+        let
+          val f = OS.Path.concat(q,f)
+          val () = remove f
+                   handle (e as OS.SysErr _) =>
+                     cgi_die ["unexpected error removing ",f,"\n",exnMessage e]
+        in loop () end
+    in loop () end
 end
 
 val waiting = read_list "waiting"
-val active  = read_list "active"
+val running = read_list "running"
 val stopped = read_list "stopped"
 
 fun queue_of_job f =
@@ -207,31 +220,28 @@ fun read_job_snapshot q id : bare_snapshot =
     handle Option => cgi_die [f," has invalid file format"]
   end
 
-fun filter_existing snapshots qs =
+fun filter_out q ids snapshots =
   let
     exception Return
     fun check_null x = if List.null x then raise Return else x
-    fun foldthis q (id,snapshots) =
+    fun remove_all_matching_this_id (id,snapshots) =
       check_null
         (List.filter (not o (equal (read_job_snapshot q id)) o bare_of_snapshot) snapshots)
   in
-    List.foldl
-      (fn ((q,get_ids),snapshots) => List.foldl (foldthis q) snapshots (get_ids()))
-    snapshots qs
+    List.foldl remove_all_matching_this_id snapshots ids
     handle Return => []
   end
 
-fun remove_if_superseded snapshots id =
-  if List.exists (equal (read_job_snapshot "waiting" id) o bare_of_snapshot) snapshots
-  then ()
-  else OS.FileSys.remove(OS.Path.concat("waiting",Int.toString id))
-       handle OS.SysErr _ => cgi_die["waiting job ",Int.toString id," disappeared"]
-
-fun next_job_id qs =
-  1 + List.foldl (fn (q,id) => max id (max_list(q()))) 0 qs
-
-fun add_waiting (snapshot,id) =
+fun first_unused_id avoid_ids id =
   let
+    fun loop id =
+      if List.exists (equal id) avoid_ids
+      then loop (id+1) else id
+  in loop id end
+
+fun add_waiting avoid_ids (snapshot,id) =
+  let
+    val id = first_unused_id avoid_ids id
     val f = Int.toString id
     val path = OS.Path.concat("waiting",f)
     val () = cgi_assert (not(OS.FileSys.access(path, []))) ["job ",f," already exists waiting"]

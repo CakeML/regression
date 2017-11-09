@@ -1,7 +1,7 @@
 TODO: Change (text) API endpoint to regression.cgi/api/
 
 TODO: Write HTML interface for status output
-  Thus regression.cgi/{,active,waiting,stopped,etc.} will return a nicely
+  Thus regression.cgi/{,running,waiting,stopped,etc.} will return a nicely
   presented webpage (with links) for viewing the current status of the queues.
 
 TODO: Write help/usage interface for worker
@@ -15,7 +15,7 @@ TODO: Update GitHub commit status for jobs in the system
   When a job is stopped: mark its commit as passed/failed
 
 TODO: Add interface for disowning jobs (1)
-  Currently, you can manually stop a job that is supposedly active and claimed
+  Currently, you can manually stop a job that is supposedly running and claimed
   by a worker that has gone rogue or died. It might be nice to support this
   programmatically as an option to the worker, so it can make the appropriate
   API calls.
@@ -23,20 +23,9 @@ TODO: Add interface for disowning jobs (1)
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
-TODO: Sort the id lists returned by {active,waiting,stopped}?
+TODO: Sort the id lists returned by {running,waiting,stopped}?
   Prioritise pull requests?
   Pull requests could be assigned lower ids by default
-
-TODO: Be smarter about assigning job ids?
-  Currently, we only assign new ids that a greater than all existing ones.
-  Would it be nice to fill in gaps instead? Maybe... When the system is running
-  well, every job will be either properly stopped or superseded, so the only
-  way for there to be a gap is when a waiting job gets superseded.
-
-  Gaps can be filled manually by renaming the highest waiting job into the
-  first gap. Indeed, that strategy could be automated (rather than assigning
-  job ids correctly in the first place). But assigning correctly is probably
-  just as easy.
 
 TODO: Replace calls to the OS shell with SML Basis functionality
   In regressionLib.sml there is a call to OS.Process.system that passes quite a

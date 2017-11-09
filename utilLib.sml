@@ -8,13 +8,6 @@ structure utilLib = struct
   fun assoc k [] = raise Match
     | assoc k ((k',v)::ls) = if k = k' then v else assoc k ls
 
-  fun max n m = if n < m then m else n
-
-  local
-    fun maxl acc [] = acc
-      | maxl acc (n::ns) = maxl (max acc n) ns
-  in val max_list = maxl 0 end
-
   val until_space =
     Substring.string o Substring.takel (not o Char.isSpace) o Substring.full
 
