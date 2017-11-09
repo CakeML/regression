@@ -141,22 +141,32 @@ fun refresh () =
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
   in () end
 
-datatype request_api = Get of api | Post of id * string
+datatype request =
+    Get of api
+  | Post of id * string
+  | Html of string * string option
 
 fun get_api () =
   case (OS.Process.getEnv "PATH_INFO",
         OS.Process.getEnv "REQUEST_METHOD") of
     (SOME path_info, SOME "GET")
-      => Option.map Get (api_from_string path_info (OS.Process.getEnv "QUERY_STRING"))
+      =>
+        if String.isPrefix "/api" path_info then
+          Option.map Get
+            (api_from_string
+              (String.extract(path_info,4,NONE))
+              (OS.Process.getEnv "QUERY_STRING"))
+        else SOME (Html (path_info, OS.Process.getEnv "QUERY_STRING"))
   | (SOME path_info, SOME "POST")
       => (case String.tokens (equal #"/") path_info of
-            ["log",n] =>
+            ["api","log",n] =>
               (Option.mapPartial
                 (fn len =>
                   Option.compose
                     ((fn id => Post(id,TextIO.inputN(TextIO.stdIn,len))),
                      id_from_string) n)
                 (Option.composePartial(Int.fromString,OS.Process.getEnv) "CONTENT_LENGTH"))
+          | ["api","refresh"] => SOME (Get Refresh) (* GitHub webhook requests this with POST *)
           | _ => NONE)
   | _ => NONE
 
@@ -184,6 +194,7 @@ fun dispatch_log id data =
 
 fun dispatch_req (Get api) = dispatch api
   | dispatch_req (Post (id,data)) = dispatch_log id data
+  | dispatch_req (Html (path,query)) = html_response "HTML interface coming soon..."
 
 fun main () =
   let

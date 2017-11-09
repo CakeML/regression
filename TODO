@@ -1,5 +1,3 @@
-TODO: Change (text) API endpoint to regression.cgi/api/
-
 TODO: Write HTML interface for status output
   Thus regression.cgi/{,running,waiting,stopped,etc.} will return a nicely
   presented webpage (with links) for viewing the current status of the queues.

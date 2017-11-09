@@ -116,7 +116,7 @@ val system_capture_append = system_capture_with " &>>"
 val poll_delay = Time.fromSeconds(60 * 30)
 
 structure API = struct
-  val endpoint = "https://cakeml.org/regression.cgi"
+  val endpoint = "https://cakeml.org/regression.cgi/api"
   fun curl_cmd api = (curl_path,
     ["--silent","--show-error"] @ api_curl_args api @ [String.concat[endpoint,api_to_string api]])
   val send = system_output o curl_cmd

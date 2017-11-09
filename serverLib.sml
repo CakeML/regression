@@ -57,6 +57,27 @@ fun cgi_die ls =
 
 fun cgi_assert b ls = if b then () else cgi_die ls
 
+val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
+
+structure HTML = struct
+  fun element tag attrs body =
+    String.concat["<",tag," ",String.concatWith" "attrs,">",body,"</",tag,">"]
+  fun elt tag body = element tag [] body
+  val html = element "html" ["lang='en'"]
+  val head = elt "head"
+  val charset = "<meta charset='utf-8'>"
+  val header = head charset
+  val body = elt "body"
+  val p = elt "p"
+end
+
+fun html_response s =
+  let
+    open HTML
+    val () = TextIO.output(TextIO.stdOut, html_response_header)
+    val () = TextIO.output(TextIO.stdOut, html (String.concat[header,body (p s)]))
+  in () end
+
 local
   open Posix.IO Posix.FileSys
   val flock = FLock.flock {ltype=F_WRLCK, whence=SEEK_SET, start=0, len=0, pid=NONE}
