@@ -173,6 +173,18 @@ end
 fun ensure_hol_exists () = ensure_clone_exists hol_remote "--single-branch " HOLDIR
 fun ensure_cakeml_exists () = ensure_clone_exists cakeml_remote "" CAKEMLDIR
 
+fun link_poly_includes () =
+  let
+    val includes_file = "poly-includes.ML"
+    val f = OS.Path.concat(OS.Path.parentArc,includes_file)
+  in
+    if OS.FileSys.access(f,[OS.FileSys.A_READ]) then
+      Posix.FileSys.symlink { old = OS.Path.concat(OS.Path.parentArc,f),
+                              new = OS.Path.concat("tools-poly",includes_file) }
+      before diag ["linking to custom ",includes_file]
+    else ()
+  end
+
 fun prepare_hol sha =
   let
     val () = ensure_hol_exists ()
@@ -184,7 +196,8 @@ fun prepare_hol sha =
       if reuse
       then diag ["re-using HOL working directory at same commit"]
       else (system_output (git_reset sha);
-            ignore (system_output git_clean))
+            system_output git_clean;
+            link_poly_includes ())
     val () = OS.FileSys.chDir OS.Path.parentArc
   in
     reuse
