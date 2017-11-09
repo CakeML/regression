@@ -302,7 +302,7 @@ in
       val f = OS.Path.concat(q,jid)
       val s = file_to_string f
     in
-      [a ".." "Overview", h3 (String.concat["Job ",jid]), pre (process s)]
+      [a ".." "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process s)]
     end
 
   fun html_response req =
