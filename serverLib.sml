@@ -57,27 +57,6 @@ fun cgi_die ls =
 
 fun cgi_assert b ls = if b then () else cgi_die ls
 
-val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
-
-structure HTML = struct
-  fun element tag attrs body =
-    String.concat["<",tag," ",String.concatWith" "attrs,">",body,"</",tag,">"]
-  fun elt tag body = element tag [] body
-  val html = element "html" ["lang='en'"]
-  val head = elt "head"
-  val charset = "<meta charset='utf-8'>"
-  val header = head charset
-  val body = elt "body"
-  val p = elt "p"
-end
-
-fun html_response s =
-  let
-    open HTML
-    val () = TextIO.output(TextIO.stdOut, html_response_header)
-    val () = TextIO.output(TextIO.stdOut, html (String.concat[header,body (p s)]))
-  in () end
-
 local
   open Posix.IO Posix.FileSys
   val flock = FLock.flock {ltype=F_WRLCK, whence=SEEK_SET, start=0, len=0, pid=NONE}
@@ -270,6 +249,69 @@ fun add_waiting avoid_ids (snapshot,id) =
     val () = print_snapshot out snapshot
     val () = TextIO.closeOut out
   in id+1 end
+
+val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
+
+structure HTML = struct
+  val attributes = List.map (fn (k,v) => String.concat[k,"='",v,"'"])
+  fun start_tag tag attrs = String.concat["<",tag," ",String.concatWith" "(attributes attrs),">"]
+  fun end_tag tag = String.concat["</",tag,">"]
+  fun element tag attrs body = String.concat[start_tag tag attrs, String.concat body, end_tag tag]
+  fun elt tag body = element tag [] [body]
+  val html = element "html" [("lang","en")]
+  val head = element "head" []
+  val meta = start_tag "meta" [("charset","utf-8")]
+  val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href","/regression-style.css")]
+  val title = elt "title" "CakeML Regression Test"
+  val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
+  val header = head [meta,stylesheet,title,shortcut]
+  val body = element "body" []
+  val h2 = elt "h2"
+  val h3 = elt "h3"
+  val pre = elt "pre"
+  fun a href body = element "a" [("href",href)] [body]
+  val li = elt "li"
+  fun ul ls = element "ul" [] (List.map li ls)
+end
+
+datatype html_request = Overview | DisplayJob of id
+
+local
+  open HTML
+in
+
+  fun job_link id =
+    let val id = Int.toString id in
+      a (String.concat["job/",id]) id
+    end
+
+  fun html_job_list (q,ids) =
+    [h2 q, ul (List.map job_link ids)]
+
+  fun process s = s (* TODO: replace bad chars (e.g., <), add links, shift dates to timezone? *)
+
+  fun req_body Overview =
+    List.concat
+      (ListPair.map html_job_list
+         (["Waiting","Running","Stopped"],
+          [waiting(),running(),stopped()]))
+  | req_body (DisplayJob id) =
+    let
+      val jid = Int.toString id
+      val q = queue_of_job jid
+      val f = OS.Path.concat(q,jid)
+      val s = file_to_string f
+    in
+      [a ".." "Overview", h3 (String.concat["Job ",jid]), pre (process s)]
+    end
+
+  fun html_response req =
+    let
+      val () = TextIO.output(TextIO.stdOut, html_response_header)
+      val () = TextIO.output(TextIO.stdOut, html ([header,body (req_body req)]))
+    in () end
+
+end
 
 structure GitHub = struct
   val token = until_space (file_to_string "token")

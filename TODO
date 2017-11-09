@@ -1,20 +1,19 @@
-TODO: Write HTML interface for status output
-  Thus regression.cgi/{,running,waiting,stopped,etc.} will return a nicely
-  presented webpage (with links) for viewing the current status of the queues.
-
-TODO: Write help/usage interface for worker
-  Make the program more self-documenting.
-
-TODO: Make server send email to builds@cakeml.org when a job is stopped
-
 TODO: Update GitHub commit status for jobs in the system
   Probably this should be done by the server.
   When a job is claimed: mark its commit as being tested
   When a job is stopped: mark its commit as passed/failed
 
+TODO: Write help/usage interface for worker
+  Make the program more self-documenting.
+
+TODO: Improve HTML interface
+  Mainly, add links to the job page.
+
 TODO: Sort the id lists returned by {running,waiting,stopped}?
   Prioritise pull requests?
   Pull requests are assigned lower ids by default already?
+
+TODO: Make server send email to builds@cakeml.org when a job is stopped
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.

@@ -144,7 +144,7 @@ fun refresh () =
 datatype request =
     Get of api
   | Post of id * string
-  | Html of string * string option
+  | Html of html_request
 
 fun get_api () =
   case (OS.Process.getEnv "PATH_INFO",
@@ -156,7 +156,10 @@ fun get_api () =
             (api_from_string
               (String.extract(path_info,4,NONE))
               (OS.Process.getEnv "QUERY_STRING"))
-        else SOME (Html (path_info, OS.Process.getEnv "QUERY_STRING"))
+        else
+          (case String.tokens (equal #"/") path_info of
+            ["job",n] => Option.map (Html o DisplayJob) (id_from_string n)
+          | _ => SOME (Html Overview))
   | (SOME path_info, SOME "POST")
       => (case String.tokens (equal #"/") path_info of
             ["api","log",n] =>
@@ -194,7 +197,9 @@ fun dispatch_log id data =
 
 fun dispatch_req (Get api) = dispatch api
   | dispatch_req (Post (id,data)) = dispatch_log id data
-  | dispatch_req (Html (path,query)) = html_response "HTML interface coming soon..."
+  | dispatch_req (Html req) =
+      html_response req
+      handle e => cgi_die [exnMessage e]
 
 fun main () =
   let
