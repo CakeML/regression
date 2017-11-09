@@ -191,10 +191,11 @@ fun prepare_hol sha =
     val () = OS.FileSys.chDir HOLDIR
     val () = ignore (system_output git_fetch)
     val output = system_output git_head
-    val reuse = String.isPrefix sha output
+    val reuse = String.isPrefix sha output andalso
+                OS.FileSys.access("bin/build",[OS.FileSys.A_EXEC])
     val () =
       if reuse
-      then diag ["re-using HOL working directory at same commit"]
+      then diag ["re-using HOL working directory built at same commit"]
       else (system_output (git_reset sha);
             system_output git_clean;
             link_poly_includes ())
@@ -222,12 +223,11 @@ fun prepare_cakeml x =
 local
   val configure_hol = "poly --script tools/smart-configure.sml"
 in
-  fun build_hol id =
+  fun build_hol reused id =
     let
       val () = OS.FileSys.chDir HOLDIR
       val configured =
-        OS.FileSys.access("bin/build",[OS.FileSys.A_EXEC])
-        orelse system_capture configure_hol
+        reused orelse system_capture configure_hol
       val built = configured andalso
                   system_capture_append "bin/build --nograph"
       val () = OS.FileSys.chDir OS.Path.parentArc
@@ -345,7 +345,7 @@ fun work resumed id =
           val () = prepare_cakeml bcml
           val () = diag ["building HOL for job ",jid]
         in
-          build_hol id
+          build_hol reused id
         end
     in
       built_hol andalso
