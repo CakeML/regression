@@ -1,6 +1,6 @@
 (*
-  Acquire the lock that is used by the server to run a command without
-  interfering with the server
+  Maintenance tool: acquire the lock that is used by the server to run a
+  command without interfering with the server.
 *)
 use "serverLib.sml";
 open serverLib

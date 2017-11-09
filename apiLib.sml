@@ -1,5 +1,5 @@
 (*
-API that server and worker agree on
+The API that the server and worker agree on.
 
 Reference:
 

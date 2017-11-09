@@ -2,18 +2,20 @@ Automated regression test infrastructure for CakeML.
 
 [api.sml](api.sml):
 Implements the server-side regression-test API as a CGI program.
-The API is for workers to view and manipulate the job queues.
 
-[design.txt](design.txt):
-Notes on the design of the automated regression test infrastructure.
+[apiLib.sml](apiLib.sml):
+The API that the server and worker agree on.
 
-[poll.sml](poll.sml):
-Implements automatic refreshing of the job queues.
-If there are new jobs on GitHub, they will be added to the waiting queue.
-If there are stale jobs, they will be removed.
+[flock.sml](flock.sml):
+Maintenance tool: acquire the lock that is used by the server to run a
+command without interfering with the server.
 
-[regressionLib.sml](regressionLib.sml):
-Code shared between the pieces of the regression test suite.
+[serverLib.sml](serverLib.sml):
+Functions for manipulating the queues in the filesystem on the server,
+including for getting information from GitHub with which to update them.
+
+[utilLib.sml](utilLib.sml):
+Small library of useful code.
 
 [worker.sml](worker.sml):
 Worker that claims and runs regression test jobs.

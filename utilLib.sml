@@ -1,3 +1,6 @@
+(*
+  Small library of useful code.
+*)
 structure utilLib = struct
 
   fun equal x y = x = y
