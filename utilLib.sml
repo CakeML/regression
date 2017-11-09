@@ -11,6 +11,11 @@ structure utilLib = struct
   fun assoc k [] = raise Match
     | assoc k ((k',v)::ls) = if k = k' then v else assoc k ls
 
+  fun insert x [] = [x]
+    | insert x (y::xs) =
+      if x <= y then x::y::xs
+      else y::(insert x xs)
+
   val until_space =
     Substring.string o Substring.takel (not o Char.isSpace) o Substring.full
 

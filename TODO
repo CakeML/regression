@@ -9,10 +9,6 @@ TODO: Write help/usage interface for worker
 TODO: Improve HTML interface
   Mainly, add links to the job page.
 
-TODO: Sort the id lists returned by {running,waiting,stopped}?
-  Prioritise pull requests?
-  Pull requests are assigned lower ids by default already?
-
 TODO: Make server send email to builds@cakeml.org when a job is stopped
 
 TODO: Make server stop jobs that have been running too long

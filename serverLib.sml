@@ -180,7 +180,7 @@ in
       | SOME f => if isDir (OS.Path.concat(q,f)) handle OS.SysErr _ => cgi_die [f, " disappeared from ", q, " unexpectedly"]
                   then cgi_die ["found unexpected directory ",f," in ",q]
                   else case Int.fromString f of NONE => badFile f
-                       | SOME id => if check_id f id then loop (id::acc) else badFile f
+                       | SOME id => if check_id f id then loop (insert id acc) else badFile f
       val ids = loop []
     in ids end
   fun clear_list q =
