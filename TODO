@@ -6,10 +6,12 @@ TODO: Update GitHub commit status for jobs in the system
 TODO: Write help/usage interface for worker
   Make the program more self-documenting.
 
-TODO: Improve HTML interface
-  Mainly, add links to the job page.
-
 TODO: Make server send email to builds@cakeml.org when a job is stopped
+
+TODO: Improve HTML interface
+  Mainly for job page:
+  - make times display nicer (using CSS?)
+  - bold titles or other stylistic tweaks
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.

@@ -104,7 +104,7 @@ type job = {
 }
 
 local
-  val full_date = Date.fmt "%Y %b %d %H:%M:%S"
+  val full_date = Date.fmt "%Y-%m-%dT%H:%M:%SZ"
 in
   fun print_claimed out (worker,date) =
     let
@@ -119,7 +119,7 @@ in
       fun pr s = TextIO.output(out,s)
       val prl = List.app pr
     in
-      prl [full_date date, ": ", line, "\n"]
+      prl [full_date date, " ", line, "\n"]
     end
 
   fun print_snapshot out (s:snapshot) =
@@ -254,7 +254,8 @@ val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
 
 structure HTML = struct
   val attributes = List.map (fn (k,v) => String.concat[k,"='",v,"'"])
-  fun start_tag tag attrs = String.concat["<",tag," ",String.concatWith" "(attributes attrs),">"]
+  fun start_tag tag [] = String.concat["<",tag,">"]
+    | start_tag tag attrs = String.concat["<",tag," ",String.concatWith" "(attributes attrs),">"]
   fun end_tag tag = String.concat["</",tag,">"]
   fun element tag attrs body = String.concat[start_tag tag attrs, String.concat body, end_tag tag]
   fun elt tag body = element tag [] [body]
@@ -269,6 +270,7 @@ structure HTML = struct
   val h2 = elt "h2"
   val h3 = elt "h3"
   val pre = elt "pre"
+  val time = elt "time"
   fun a href body = element "a" [("href",href)] [body]
   val li = elt "li"
   fun ul ls = element "ul" [] (List.map li ls)
@@ -288,7 +290,75 @@ in
   fun html_job_list (q,ids) =
     [h2 q, ul (List.map job_link ids)]
 
-  fun process s = s (* TODO: replace bad chars (e.g., <), add links, shift dates to timezone? *)
+  (*
+  fun shorten n s =
+    let
+      val z = String.size s
+    in
+      if z <= n then s
+      else Substring.string(Substring.trimr (z-n) (Substring.full s))
+    end
+  *)
+
+  val cakeml_github = "https://github.com/CakeML/cakeml"
+  val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
+  fun cakeml_commit_link s =
+    a (String.concat[cakeml_github,"/commit/",s]) s
+  fun hol_commit_link s =
+    a (String.concat[hol_github,"/commit/",s]) s
+  fun cakeml_pr_link ss =
+    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
+
+  fun escape_char #"<" = "&lt;"
+    | escape_char #">" = "&gt;"
+    | escape_char c = String.str c
+  val escape = String.translate escape_char
+
+  fun extract_date s =
+    let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
+    in (Substring.string s1, Substring.string s2) end
+
+  fun process s =
+    let
+      val inp = TextIO.openString s
+      fun read_line () = Option.valOf (TextIO.inputLine inp)
+      val prefix = "CakeML: "
+      val sha = extract_sha prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+      val acc = [String.concat[prefix,cakeml_commit_link sha,"\n"]]
+      val acc = escape (read_line ()) :: acc
+      val line = read_line ()
+      val (line,acc) =
+        if String.isPrefix "#" line then
+          let
+            val ss = Substring.full line
+            val (pr,rest) = Substring.splitl (not o Char.isSpace) ss
+            val line = String.concat[cakeml_pr_link pr, escape (Substring.string rest)]
+            val acc = line::acc
+            val prefix = "Merging into: "
+            val sha = extract_sha prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+            val acc = (String.concat[prefix,cakeml_commit_link sha,"\n"])::acc
+            val acc = escape (read_line ()) :: acc
+          in (read_line (), acc) end
+        else (line,acc)
+      val prefix = "HOL: "
+      val sha = extract_sha prefix line handle Option => cgi_die ["failed to find line ",prefix]
+      val acc = (String.concat[prefix,hol_commit_link sha,"\n"])::acc
+      val acc = escape (read_line ()) :: acc
+      val acc = escape (read_line ()) :: acc
+      val prefix = "Claimed: "
+      val date = extract_sha prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+      val acc = (String.concat[prefix, time date,"\n"])::acc
+      fun loop acc =
+        let
+          val line = read_line()
+          val (date,rest) = extract_date line
+        in
+          if String.size date = 0 then
+            loop (line::acc)
+          else
+            loop ((String.concat[time date,escape rest])::acc)
+        end handle Option => acc
+    in String.concat(List.rev (loop acc)) end
 
   fun req_body Overview =
     List.concat
