@@ -31,8 +31,3 @@ TODO: Replace calls to the OS shell with SML Basis functionality
   and redirecting standard streams. This could all be implemented in the SML
   Basis, in particular using Posix structure, instead. Doing so might be more
   reliable?
-
-(*
-server = api.sml
-worker = worker.sml
-*)
