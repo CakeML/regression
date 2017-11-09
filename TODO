@@ -12,32 +12,25 @@ TODO: Update GitHub commit status for jobs in the system
   When a job is claimed: mark its commit as being tested
   When a job is stopped: mark its commit as passed/failed
 
-TODO: Add interface for disowning jobs (1)
+TODO: Sort the id lists returned by {running,waiting,stopped}?
+  Prioritise pull requests?
+  Pull requests are assigned lower ids by default already?
+
+TODO: Make server stop jobs that have been running too long
+  This could be done as part of the refresh action.
+
+TODO: Add interface for disowning jobs
   Currently, you can manually stop a job that is supposedly running and claimed
   by a worker that has gone rogue or died. It might be nice to support this
   programmatically as an option to the worker, so it can make the appropriate
   API calls.
 
-TODO: Make server stop jobs that have been running too long
-  This could be done as part of the refresh action.
-
-TODO: Sort the id lists returned by {running,waiting,stopped}?
-  Prioritise pull requests?
-  Pull requests could be assigned lower ids by default
-
 TODO: Replace calls to the OS shell with SML Basis functionality
-  In regressionLib.sml there is a call to OS.Process.system that passes quite a
-  lot of work off to the shell: setting environment variables, executing a
-  subprocess, and redirecting standard streams. This could all be implemented
-  in the SML Basis, in particular using Posix structure, instead. Doing so
-  might be more reliable?
-
-TODO: Add interface for disowning jobs (2)?
-  After "disowning" (and stopping) a job, another similar job will eventually
-  be added to the queue if necessary. But would it be nice to instead be able
-  to re-use the existing job number? I.e., do not stop the job after disowning
-  but rather return it to the waiting queue? This would require a new API
-  action.
+  In worker.sml there is a call to OS.Process.system that passes quite a lot of
+  work off to the shell: setting environment variables, executing a subprocess,
+  and redirecting standard streams. This could all be implemented in the SML
+  Basis, in particular using Posix structure, instead. Doing so might be more
+  reliable?
 
 (*
 server = api.sml
