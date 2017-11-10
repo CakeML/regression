@@ -242,7 +242,7 @@ end
 
 local
   val resume_file = "resume"
-  val time_options = String.concat["--format='%E %M' --output='",timing_file,"'"]
+  val time_options = String.concat["--format='%e %M' --output='",timing_file,"'"]
   val max_dir_length = 50
   fun pad dir =
     let
