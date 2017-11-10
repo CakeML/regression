@@ -106,6 +106,7 @@ type job = {
 
 val machine_date = Date.fmt "%Y-%m-%dT%H:%M:%SZ"
 val pretty_date = Date.fmt "%b %d %H:%M:%S"
+val pretty_date_moment = "MMM DD HH:mm:ss"
 
 fun print_claimed out (worker,date) =
   let
@@ -524,10 +525,16 @@ structure HTML = struct
   val head = element "head" []
   val meta = start_tag "meta" [("charset","utf-8")]
   val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href","/regression-style.css")]
-  val javascript = element "script" [("src","/regression-script.js")] []
+  val momentjs = element "script" [("src","https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.19.1/moment.min.js")] []
+  val localisejs = element "script" [] [
+    "function localiseTimes() {",
+    "var ls = document.getElementsByTagName(\"time\");",
+    "for (var i = 0; i < ls.length; i++) {",
+    "ls[i].innerHTML = moment(ls[i].getAttribute(\"datetime\")).format(\"",
+    pretty_date_moment,"\");}}"]
   val title = elt "title" "CakeML Regression Test"
   val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
-  val header = head [meta,stylesheet,title,shortcut,javascript]
+  val header = head [meta,stylesheet,title,shortcut,momentjs,localisejs]
   val body = element "body" [("onload","localiseTimes()")]
   val h2 = elt "h2"
   val h3 = elt "h3"
