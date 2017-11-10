@@ -587,6 +587,41 @@ in
     | escape_char c = if Char.isPrint c orelse Char.isSpace c then String.str c else ""
   val escape = String.translate escape_char
 
+  fun format_rusage s =
+    let
+      val timing = String.tokens Char.isSpace s
+      val secs = List.nth(timing,0)
+      val () = if List.all Char.isDigit (String.explode secs) then () else raise Option
+      val ts = Option.valOf(Int.fromString secs)
+      val tm = Int.quot(ts,60) val ss = Int.rem(ts,60)
+      val hh = Int.quot(tm,60) val mm = Int.rem(tm,60)
+      val tK = Option.valOf(Int.fromString(List.nth(timing,1)))
+      val tM = Int.quot(tK,1000) val K = Int.rem(tK,1000)
+      val  G = Int.quot(tM,1000) val M = Int.rem(tM,1000)
+      fun i2 c n =
+        String.concat[if n < 10 then String.str c else "", Int.toString n]
+      val i2s = i2 #" " and i20 = i2 #"0"
+      fun i3s n suffix =
+        String.concat [
+          if n < 10 then "  "
+          else if n < 100 then " " else "",
+          Int.toString n, suffix]
+    in
+      String.concat[
+        if hh > 0 then
+          String.concat [i2s hh, "h", i20 mm, "m", i20 ss, "s"]
+        else if mm > 0 then
+          String.concat ["   ", i2s mm, "m", i20 ss, "s"]
+        else
+          String.concat ["      ", i2s ss, "s"],
+        " ",
+        if G > 0 then
+          i3s G "Gb"
+        else if M > 0 then
+          i3s M "Mb" else
+          i3s K "Kb"]
+    end handle Subscript => raise Option
+
   fun process s =
     let
       val inp = TextIO.openString s
@@ -624,6 +659,20 @@ in
         in
           if String.size line = 1 then line::acc else raise (Return (line::acc))
         end handle Return acc => escape (TextIO.inputAll inp) :: acc
+      fun format_log_line s =
+        let
+          val prefix = " Finished "
+          val rest = extract_prefix_trimr prefix s
+          val (dir,rest) = extract_word rest
+          val (space,rest) = Substring.splitl Char.isSpace (Substring.full rest)
+        in
+          String.concat[
+            prefix,
+            Substring.string dir,
+            Substring.string space,
+            format_rusage (Substring.string rest),
+            "\n"]
+        end handle Option => escape s
       fun loop acc =
         let
           val line = read_line()
@@ -633,7 +682,7 @@ in
             val line =
               String.concat
                [time date,
-                escape (Substring.string rest)]
+                format_log_line (Substring.string rest)]
           in
             loop (line::acc)
           end handle Option => escape (TextIO.inputAll inp) :: acc

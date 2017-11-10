@@ -3,9 +3,6 @@ TODO: Write help/usage interface for worker
 
 TODO: Make server send email to builds@cakeml.org when a job is stopped
 
-TODO: Fix memory usage reports
-  time seems to always be returning 0 for %K, which seems wrong
-
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
