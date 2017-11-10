@@ -174,7 +174,6 @@ fun read_bare_snapshot inp =
         in (read_line(), SOME (extract_prefix_trimr "Merging into: " line)) end
       else (line, NONE)
     val hol_sha = extract_prefix_trimr "HOL: " line
-    val () = TextIO.closeIn inp
   in
     { bcml = case base_sha
                of NONE => Bbr head_sha

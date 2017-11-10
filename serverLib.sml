@@ -215,9 +215,16 @@ fun read_job_snapshot q id : bare_snapshot =
   let
     val f = OS.Path.concat(q,Int.toString id)
     val inp = TextIO.openIn f handle IO.Io _ => cgi_die ["cannot open ",f]
+    val bs = read_bare_snapshot inp
+             handle Option => cgi_die [f," has invalid file format"]
+    val () = TextIO.closeIn inp
+  in bs end
+
+fun read_head_sha inp =
+  let
+    val {bcml,...} = read_bare_snapshot inp
   in
-    read_bare_snapshot inp
-    handle Option => cgi_die [f," has invalid file format"]
+    case bcml of Bbr sha => sha | Bpr {head_sha,...} => head_sha
   end
 
 fun filter_out q ids snapshots =
@@ -252,14 +259,64 @@ fun add_waiting avoid_ids (snapshot,id) =
 
 structure GitHub = struct
   val token = until_space (file_to_string "token")
-  val endpoint = "https://api.github.com/graphql"
-  fun curl_cmd query = (curl_path,["--silent","--show-error",
+  val graphql_endpoint = "https://api.github.com/graphql"
+  fun graphql_curl_cmd query = (curl_path,["--silent","--show-error",
     "--header",String.concat["Authorization: bearer ",token],
     "--request","POST",
     "--data",String.concat["{\"query\" : \"",query,"\"}"],
-    endpoint])
-  val graphql = system_output cgi_die o curl_cmd
+    graphql_endpoint])
+  val graphql = system_output cgi_die o graphql_curl_cmd
+
+  fun cakeml_status_endpoint sha =
+    String.concat["/repos/CakeML/cakeml/statuses/",sha]
+
+  fun status_json id (st,desc) =
+    String.concat[
+      "{\"state\":\"",st,"\",",
+      "\"target_url\":\"https://cakeml.org/regression.cgi/job/",id,"\",",
+      "\"description\":\"",desc,"\",",
+      "\"context\":\"cakeml-regression-test\"}"]
+
+  val rest_endpoint = "https://api.github.com"
+  val rest_version = "application/vnd.github.v3+json"
+  fun rest_curl_cmd endpoint data = (curl_path,["--silent","--show-error",
+    "--header",String.concat["Authorization: bearer ",token],
+    "--header",String.concat["Accept: ",rest_version],
+    "--write-out", "%{http_code}",
+    "--output", "/dev/null",
+    "--request","POST",
+    "--data",data,
+    String.concat[rest_endpoint,endpoint]])
+
+  val pending_status = ("pending","regression test in progress")
+  val success_status = ("success","regression test succeeded")
+  val failure_status = ("failure","regression test failed")
+  val unknown_status = ("error","regression test aborted")
+  fun set_status id sha sd =
+    let
+      val cmd =
+        rest_curl_cmd
+          (cakeml_status_endpoint sha)
+          (status_json id sd)
+      val response = system_output cgi_die cmd
+    in
+      cgi_assert
+        (String.isPrefix "201" response)
+        ["Error setting GitHub commit status\n",response]
+    end
 end
+
+fun read_status inp =
+  let
+    fun loop () =
+      case TextIO.inputLine inp of NONE => GitHub.unknown_status
+      | SOME line =>
+        if String.isSubstring "FAILED" line
+          then GitHub.failure_status
+        else if String.isSubstring "SUCCESS" line
+          then GitHub.success_status
+        else loop ()
+  in loop () end
 
 val cakeml_query = String.concat [
   "{repository(name: \\\"cakeml\\\", owner: \\\"CakeML\\\"){",

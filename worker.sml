@@ -334,8 +334,10 @@ fun work resumed id =
     if String.isPrefix "Error:" response
     then (warn [response]; false) else
     let
-      val {bcml,bhol} = read_bare_snapshot (TextIO.openString response)
+      val inp = TextIO.openString response
+      val {bcml,bhol} = read_bare_snapshot inp
                         handle Option => die["job ",jid," returned invalid response"]
+      val () = TextIO.closeIn inp
       val built_hol =
         if resumed then validate_resume jid bhol bcml
         else let

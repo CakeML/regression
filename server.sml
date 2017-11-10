@@ -65,14 +65,18 @@ fun claim id name =
     val old = OS.Path.concat("waiting",f)
     val new = OS.Path.concat("running",f)
     val () =
-      if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
-        if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
-          cgi_die ["job ",f, " is both waiting and running"]
-        else OS.FileSys.rename{old = old, new = new}
-      else cgi_die ["job ",f," is not waiting to be claimed"]
+      if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
+        cgi_die ["job ",f, " is both waiting and running"]
+      else OS.FileSys.rename{old = old, new = new}
     val out = TextIO.openAppend new
+    val () = print_claimed out (name,Date.fromTimeUniv(Time.now()))
+    val () = TextIO.closeOut out
+    val inp = TextIO.openIn new
+    val sha = read_head_sha inp
+              handle Option => cgi_die ["job ",f," has invalid file format"]
+    val () = TextIO.closeIn inp
   in
-    print_claimed out (name,Date.fromTimeUniv(Time.now())) before TextIO.closeOut out
+    GitHub.set_status f sha GitHub.pending_status
   end
 
 fun append id line =
@@ -104,8 +108,13 @@ fun stop id =
           cgi_die ["job ",f, " is both running and stopped"]
         else OS.FileSys.rename{old = old, new = new}
       else cgi_die ["job ",f," is not running: cannot stop"]
+    val inp = TextIO.openIn new
+    val sha = read_head_sha inp
+    val status = read_status inp
+    val () = TextIO.closeIn inp
   in
-    () (* TODO: send email *)
+    GitHub.set_status f sha status
+    (* TODO: send email *)
   end
 
 fun retry id =
