@@ -490,7 +490,8 @@ in
     end
 
   fun html_job_list (q,ids) =
-    [h2 q, ul (List.map job_link ids)]
+    if List.null ids then []
+    else [h2 q, ul (List.map job_link ids)]
 
   val cakeml_github = "https://github.com/CakeML/cakeml"
   val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
@@ -571,6 +572,7 @@ in
       (ListPair.map html_job_list
          (["Waiting","Running","Stopped"],
           [waiting(),running(),stopped()]))
+    @ [a "api/refresh" "refresh from GitHub"]
   | req_body (DisplayJob id) =
     let
       val jid = Int.toString id
