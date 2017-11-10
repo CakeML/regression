@@ -28,9 +28,10 @@
       <short message> (<date>)]
     HOL: <SHA>
       <short message> (<date>)
-    [Machine: <worker name>
-     Claimed: <date>]
-    <date>: <line(s) of output>
+    [Machine: <worker name>]
+
+    [<date> Claimed job]
+    [<date> <line of output>]
     ...
 *)
 
@@ -103,52 +104,51 @@ type job = {
   output : log
 }
 
-local
-  val full_date = Date.fmt "%Y-%m-%dT%H:%M:%SZ"
-in
-  fun print_claimed out (worker,date) =
-    let
-      fun pr s = TextIO.output(out,s)
-      val prl = List.app pr
-    in
-      prl ["Machine: ",worker,"\nClaimed: ",full_date date,"\n"]
-    end
+val machine_date = Date.fmt "%Y-%m-%dT%H:%M:%SZ"
+val pretty_date = Date.fmt "%b %d %H:%M:%S"
 
-  fun print_log_entry out (date,line) =
-    let
-      fun pr s = TextIO.output(out,s)
-      val prl = List.app pr
-    in
-      prl [full_date date, " ", line, "\n"]
-    end
+fun print_claimed out (worker,date) =
+  let
+    fun pr s = TextIO.output(out,s)
+    val prl = List.app pr
+  in
+    prl ["Machine: ",worker,"\n\n",machine_date date," Claimed job\n"]
+  end
 
-  fun print_snapshot out (s:snapshot) =
-    let
-      fun pr s = TextIO.output(out,s)
-      val prl = List.app pr
-      fun print_obj obj =
-        prl [#hash obj, "\n  ", #message obj, " (", Date.fmt "%d/%m/%y" (#date obj), ")\n"]
+fun print_log_entry out (date,line) =
+  let
+    fun pr s = TextIO.output(out,s)
+    val prl = List.app pr
+  in
+    prl [machine_date date, " ", line, "\n"]
+  end
 
-      val () = pr "CakeML: "
-      val () =
-        case #cakeml s of
-          Branch (head_ref,base_obj) => print_obj base_obj
-        | PR {num,head_ref,head_obj,base_obj} => (
-                 print_obj head_obj;
-                 prl ["#", Int.toString num, " (", head_ref, ")\nMerging into: "];
-                 print_obj base_obj
-               )
-      val () = pr "HOL: "
-      val () = print_obj (#hol s)
-    in () end
+fun print_snapshot out (s:snapshot) =
+  let
+    fun pr s = TextIO.output(out,s)
+    val prl = List.app pr
+    fun print_obj obj =
+      prl [#hash obj, "\n  ", #message obj, " (", Date.fmt "%d/%m/%y" (#date obj), ")\n"]
 
-  fun print_job out (j:job) =
-    let
-      val () = print_snapshot out (#snapshot j)
-      val () = case #claimed j of NONE => () | SOME claimed => print_claimed out claimed
-      val () = List.app (print_log_entry out) (#output j)
-    in () end
-end
+    val () = pr "CakeML: "
+    val () =
+      case #cakeml s of
+        Branch (head_ref,base_obj) => print_obj base_obj
+      | PR {num,head_ref,head_obj,base_obj} => (
+               print_obj head_obj;
+               prl ["#", Int.toString num, " (", head_ref, ")\nMerging into: "];
+               print_obj base_obj
+             )
+    val () = pr "HOL: "
+    val () = print_obj (#hol s)
+  in () end
+
+fun print_job out (j:job) =
+  let
+    val () = print_snapshot out (#snapshot j)
+    val () = case #claimed j of NONE => () | SOME claimed => print_claimed out claimed
+    val () = List.app (print_log_entry out) (#output j)
+  in () end
 
 val queue_dirs = ["waiting","running","stopped"]
 
@@ -470,9 +470,9 @@ structure HTML = struct
   val body = element "body" []
   val h2 = elt "h2"
   val h3 = elt "h3"
-  val h4 = elt "h4"
+  val strong = elt "strong"
   val pre = elt "pre"
-  val time = elt "time"
+  fun time d = element "time" [("datetime",machine_date d)] [pretty_date d]
   fun a href body = element "a" [("href",href)] [body]
   val li = elt "li"
   fun ul ls = element "ul" [] (List.map li ls)
@@ -492,16 +492,6 @@ in
   fun html_job_list (q,ids) =
     [h2 q, ul (List.map job_link ids)]
 
-  (*
-  fun shorten n s =
-    let
-      val z = String.size s
-    in
-      if z <= n then s
-      else Substring.string(Substring.trimr (z-n) (Substring.full s))
-    end
-  *)
-
   val cakeml_github = "https://github.com/CakeML/cakeml"
   val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
   fun cakeml_commit_link s =
@@ -513,14 +503,12 @@ in
 
   fun escape_char #"<" = "&lt;"
     | escape_char #">" = "&gt;"
-    | escape_char c = String.str c
+    | escape_char c = if Char.isPrint c orelse Char.isSpace c then String.str c else ""
   val escape = String.translate escape_char
 
   fun extract_word s =
     let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
     in (s1, Substring.string s2) end
-
-  val pretty_date_fmt = "%b %d %H:%M:%S"
 
   fun process s =
     let
@@ -528,7 +516,7 @@ in
       fun read_line () = Option.valOf (TextIO.inputLine inp)
       val prefix = "CakeML: "
       val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
-      val acc = [String.concat[h4 prefix,cakeml_commit_link sha,"\n"]]
+      val acc = [String.concat[strong prefix,cakeml_commit_link sha,"\n"]]
       val acc = escape (read_line ()) :: acc (* msg *)
       val line = read_line ()
       val (line,acc) =
@@ -540,13 +528,13 @@ in
             val acc = line::acc
             val prefix = "Merging into: "
             val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
-            val acc = (String.concat[h4 prefix,cakeml_commit_link sha,"\n"])::acc
+            val acc = (String.concat[strong prefix,cakeml_commit_link sha,"\n"])::acc
             val acc = escape (read_line ()) :: acc
           in (read_line (), acc) end
         else (line,acc)
       val prefix = "HOL: "
       val sha = extract_prefix_trimr prefix line handle Option => cgi_die ["failed to find line ",prefix]
-      val acc = (String.concat[h4 prefix,hol_commit_link sha,"\n"])::acc
+      val acc = (String.concat[strong prefix,hol_commit_link sha,"\n"])::acc
       val acc = escape (read_line ()) :: acc (* msg *)
       exception Return of string list
       val acc =
@@ -554,14 +542,11 @@ in
           val prefix = "Machine: "
           val line = read_line () handle Option => raise (Return acc)
           val name = extract_prefix_trimr prefix line handle Option => raise (Return (line::acc))
-          val acc = (String.concat[h4 prefix,escape name,"\n"])::acc
-          val prefix = "Claimed: "
+          val acc = (String.concat[strong prefix,escape name,"\n"])::acc
           val line = read_line () handle Option => raise (Return acc)
-          val date = extract_prefix_trimr prefix line handle Option => raise (Return (line::acc))
-          val (date,e) = ReadJSON.bare_read_date (Substring.full date) handle Option => raise (Return acc)
         in
-          (String.concat[prefix, time (Date.fmt pretty_date_fmt date),"\n\n"])::acc
-        end handle Return acc => TextIO.inputAll inp :: acc
+          if String.size line = 1 then line::acc else raise (Return (line::acc))
+        end handle Return acc => escape (TextIO.inputAll inp) :: acc
       fun loop acc =
         let
           val line = read_line()
@@ -570,11 +555,11 @@ in
             val (date,rest) = ReadJSON.bare_read_date (Substring.full line)
             val line =
               String.concat
-               [time (Date.fmt pretty_date_fmt date),
+               [time date,
                 escape (Substring.string rest)]
           in
             loop (line::acc)
-          end handle Option => TextIO.inputAll inp :: acc
+          end handle Option => escape (TextIO.inputAll inp) :: acc
         end handle Option => acc
     in
       String.concat(List.rev (loop acc)) before

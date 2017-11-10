@@ -1,5 +1,5 @@
 h2, h3, h3 a, a:hover { color: #e80 }
-h4 { margin-bottom: 0 }
+pre strong { display: block; margin-top: 1em; }
 ul { list-style-type: none; font-size: 24px; }
 li { display: inline; padding: 1em; }
 a { color: #337ab7; text-decoration: none; }
