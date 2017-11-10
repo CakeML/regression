@@ -17,9 +17,6 @@ TODO: Add interface for disowning jobs
   programmatically as an option to the worker, so it can make the appropriate
   API calls.
 
-TODO: Figure out localised times for job page?
-  Is there a way to do this without javascript or cookies?
-
 TODO: Replace calls to the OS shell with SML Basis functionality
   In worker.sml there is a call to OS.Process.system that passes quite a lot of
   work off to the shell: setting environment variables, executing a subprocess,
