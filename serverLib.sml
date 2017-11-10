@@ -203,6 +203,8 @@ val running = read_list "running"
 val stopped = read_list "stopped"
 val errored = read_list "errored"
 
+val queue_funs = [waiting,running,stopped,errored]
+
 fun queue_of_job f =
   let
     fun mk_path dir = OS.Path.concat(dir,f)
@@ -533,6 +535,7 @@ structure HTML = struct
   val pre = elt "pre"
   fun time d = element "time" [("datetime",machine_date d)] [pretty_date d]
   fun a href body = element "a" [("href",href)] [body]
+  val span = elt "span"
   val li = elt "li"
   fun ul ls = element "ul" [] (List.map li ls)
 end
@@ -543,14 +546,25 @@ local
   open HTML
 in
 
-  fun job_link id =
-    let val id = Int.toString id in
-      a (String.concat["job/",id]) id
+  fun job_link q id =
+    let
+      val jid = Int.toString id
+      val f = OS.Path.concat(q,jid)
+      val inp = TextIO.openIn f
+      val typ = read_job_type inp
+                handle IO.Io _ => cgi_die ["cannot open ",f]
+                     | Option => cgi_die [f," has invalid file format"]
+      val () = TextIO.closeIn inp
+    in
+      String.concat[a (String.concat["job/",jid]) jid, " ",
+                    span (String.concat ["(", typ, ")"])]
     end
+
+  fun capitalise s = String.concat[String.str(Char.toUpper(String.sub(s,0))),String.extract(s,1,NONE)]
 
   fun html_job_list (q,ids) =
     if List.null ids then []
-    else [h2 q, ul (List.map job_link ids)]
+    else [h2 (capitalise q), ul (List.map (job_link q) ids)]
 
   val cakeml_github = "https://github.com/CakeML/cakeml"
   val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
@@ -565,10 +579,6 @@ in
     | escape_char #">" = "&gt;"
     | escape_char c = if Char.isPrint c orelse Char.isSpace c then String.str c else ""
   val escape = String.translate escape_char
-
-  fun extract_word s =
-    let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
-    in (s1, Substring.string s2) end
 
   fun process s =
     let
@@ -629,8 +639,8 @@ in
   fun req_body Overview =
     List.concat
       (ListPair.map html_job_list
-         (["Waiting","Running","Stopped","Errored"],
-          [waiting(),running(),stopped(),errored()]))
+         (queue_dirs,
+          List.map (fn f => f()) queue_funs))
     @ [a "api/refresh" "refresh from GitHub"]
   | req_body (DisplayJob id) =
     let

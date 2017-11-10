@@ -163,6 +163,10 @@ fun extract_prefix_trimr prefix line =
         (Substring.triml (String.size prefix) line))
   end
 
+fun extract_word s =
+  let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
+  in (s1, Substring.string s2) end
+
 fun read_bare_snapshot inp =
   let
     fun read_line () = Option.valOf (TextIO.inputLine inp)
@@ -183,6 +187,18 @@ fun read_bare_snapshot inp =
                of NONE => Bbr head_sha
                 | SOME base_sha => Bpr { head_sha = head_sha, base_sha = base_sha }
     , bhol = hol_sha }
+  end
+
+fun read_job_type inp =
+  let
+    fun read_line () = Option.valOf (TextIO.inputLine inp)
+    val _ = read_line () (* CakeML *)
+    val _ = read_line () (* msg *)
+    val line = read_line ()
+  in
+    if String.isPrefix "#" line then
+      Substring.string(#1(extract_word line))
+    else "master"
   end
 
 end
