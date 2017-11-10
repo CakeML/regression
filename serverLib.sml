@@ -250,139 +250,6 @@ fun add_waiting avoid_ids (snapshot,id) =
     val () = TextIO.closeOut out
   in id+1 end
 
-val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
-
-structure HTML = struct
-  val attributes = List.map (fn (k,v) => String.concat[k,"='",v,"'"])
-  fun start_tag tag [] = String.concat["<",tag,">"]
-    | start_tag tag attrs = String.concat["<",tag," ",String.concatWith" "(attributes attrs),">"]
-  fun end_tag tag = String.concat["</",tag,">"]
-  fun element tag attrs body = String.concat[start_tag tag attrs, String.concat body, end_tag tag]
-  fun elt tag body = element tag [] [body]
-  val html = element "html" [("lang","en")]
-  val head = element "head" []
-  val meta = start_tag "meta" [("charset","utf-8")]
-  val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href","/regression-style.css")]
-  val title = elt "title" "CakeML Regression Test"
-  val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
-  val header = head [meta,stylesheet,title,shortcut]
-  val body = element "body" []
-  val h2 = elt "h2"
-  val h3 = elt "h3"
-  val pre = elt "pre"
-  val time = elt "time"
-  fun a href body = element "a" [("href",href)] [body]
-  val li = elt "li"
-  fun ul ls = element "ul" [] (List.map li ls)
-end
-
-datatype html_request = Overview | DisplayJob of id
-
-local
-  open HTML
-in
-
-  fun job_link id =
-    let val id = Int.toString id in
-      a (String.concat["job/",id]) id
-    end
-
-  fun html_job_list (q,ids) =
-    [h2 q, ul (List.map job_link ids)]
-
-  (*
-  fun shorten n s =
-    let
-      val z = String.size s
-    in
-      if z <= n then s
-      else Substring.string(Substring.trimr (z-n) (Substring.full s))
-    end
-  *)
-
-  val cakeml_github = "https://github.com/CakeML/cakeml"
-  val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
-  fun cakeml_commit_link s =
-    a (String.concat[cakeml_github,"/commit/",s]) s
-  fun hol_commit_link s =
-    a (String.concat[hol_github,"/commit/",s]) s
-  fun cakeml_pr_link ss =
-    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
-
-  fun escape_char #"<" = "&lt;"
-    | escape_char #">" = "&gt;"
-    | escape_char c = String.str c
-  val escape = String.translate escape_char
-
-  fun extract_date s =
-    let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
-    in (Substring.string s1, Substring.string s2) end
-
-  fun process s =
-    let
-      val inp = TextIO.openString s
-      fun read_line () = Option.valOf (TextIO.inputLine inp)
-      val prefix = "CakeML: "
-      val sha = extract_sha prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
-      val acc = [String.concat[prefix,cakeml_commit_link sha,"\n"]]
-      val acc = escape (read_line ()) :: acc
-      val line = read_line ()
-      val (line,acc) =
-        if String.isPrefix "#" line then
-          let
-            val ss = Substring.full line
-            val (pr,rest) = Substring.splitl (not o Char.isSpace) ss
-            val line = String.concat[cakeml_pr_link pr, escape (Substring.string rest)]
-            val acc = line::acc
-            val prefix = "Merging into: "
-            val sha = extract_sha prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
-            val acc = (String.concat[prefix,cakeml_commit_link sha,"\n"])::acc
-            val acc = escape (read_line ()) :: acc
-          in (read_line (), acc) end
-        else (line,acc)
-      val prefix = "HOL: "
-      val sha = extract_sha prefix line handle Option => cgi_die ["failed to find line ",prefix]
-      val acc = (String.concat[prefix,hol_commit_link sha,"\n"])::acc
-      val acc = escape (read_line ()) :: acc
-      val acc = escape (read_line ()) :: acc
-      val prefix = "Claimed: "
-      val date = extract_sha prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
-      val acc = (String.concat[prefix, time date,"\n"])::acc
-      fun loop acc =
-        let
-          val line = read_line()
-          val (date,rest) = extract_date line
-        in
-          if String.size date = 0 then
-            loop (line::acc)
-          else
-            loop ((String.concat[time date,escape rest])::acc)
-        end handle Option => acc
-    in String.concat(List.rev (loop acc)) end
-
-  fun req_body Overview =
-    List.concat
-      (ListPair.map html_job_list
-         (["Waiting","Running","Stopped"],
-          [waiting(),running(),stopped()]))
-  | req_body (DisplayJob id) =
-    let
-      val jid = Int.toString id
-      val q = queue_of_job jid
-      val f = OS.Path.concat(q,jid)
-      val s = file_to_string f
-    in
-      [a ".." "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process s)]
-    end
-
-  fun html_response req =
-    let
-      val () = TextIO.output(TextIO.stdOut, html_response_header)
-      val () = TextIO.output(TextIO.stdOut, html ([header,body (req_body req)]))
-    in () end
-
-end
-
 structure GitHub = struct
   val token = until_space (file_to_string "token")
   val endpoint = "https://api.github.com/graphql"
@@ -451,6 +318,40 @@ structure ReadJSON = struct
       loop ss []
     end
 
+  val int_from_ss = Option.valOf o Int.fromString o Substring.string
+
+  fun bare_read_date ss =
+    let
+      val (year,ss) = Substring.splitAt(ss,4)
+      val ss = read1 ss #"-"
+      val (month,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #"-"
+      val (day,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #"T"
+      val (hour,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #":"
+      val (minute,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #":"
+      val (second,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #"Z"
+      val date = Date.date {
+        day = int_from_ss day,
+        hour = int_from_ss hour,
+        minute = int_from_ss minute,
+        month = month_from_int (int_from_ss month),
+        offset = SOME (Time.zeroTime),
+        second = int_from_ss second,
+        year = int_from_ss year }
+    in (date, ss) end
+    handle Subscript => raise Option | ReadFailure _ => raise Option
+
+  fun read_date ss =
+    let
+      val (s, ss) = read_string ss
+      val (date, e) = bare_read_date (Substring.full s)
+      val () = if Substring.isEmpty e then () else raise Option
+    in (date, ss) end
+
   fun read_dict (dispatch : (string * 'a reader) list) : 'a reader
   = fn acc => fn ss =>
     let
@@ -482,28 +383,6 @@ structure ReadJSON = struct
 
   fun mergeable_only "MERGEABLE" acc = acc
     | mergeable_only _ _ = NONE
-
-  val int_from_ss = Option.valOf o Int.fromString o Substring.string
-
-  fun read_date ss =
-    let
-      val (s, ss) = read_string ss
-      val d = Substring.full s
-      val (year,d) = Substring.splitl (not o equal #"-") d
-      val (month,d) = Substring.splitl (not o equal #"-") (Substring.triml 1 d)
-      val (day,d) = Substring.splitl (not o equal #"T") (Substring.triml 1 d)
-      val (hour,d) = Substring.splitl (not o equal #":") (Substring.triml 1 d)
-      val (minute,d) = Substring.splitl (not o equal #":") (Substring.triml 1 d)
-      val (second,d) = Substring.splitl (not o equal #"Z") (Substring.triml 1 d)
-      val date = Date.date {
-        day = int_from_ss day,
-        hour = int_from_ss hour,
-        minute = int_from_ss minute,
-        month = month_from_int (int_from_ss month),
-        offset = SOME (Time.zeroTime),
-        second = int_from_ss second,
-        year = int_from_ss year }
-    in (date, ss) end
 
   fun read_number ss =
     let val (n,ss) = Substring.splitl Char.isDigit ss
@@ -570,6 +449,159 @@ in
         (List.rev cakeml_integrations) (* after rev: oldest pull request first, master last *)
     end
     handle ReadFailure s => cgi_die["Could not read response from GitHub: ",s]
+end
+
+val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
+
+structure HTML = struct
+  val attributes = List.map (fn (k,v) => String.concat[k,"='",v,"'"])
+  fun start_tag tag [] = String.concat["<",tag,">"]
+    | start_tag tag attrs = String.concat["<",tag," ",String.concatWith" "(attributes attrs),">"]
+  fun end_tag tag = String.concat["</",tag,">"]
+  fun element tag attrs body = String.concat[start_tag tag attrs, String.concat body, end_tag tag]
+  fun elt tag body = element tag [] [body]
+  val html = element "html" [("lang","en")]
+  val head = element "head" []
+  val meta = start_tag "meta" [("charset","utf-8")]
+  val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href","/regression-style.css")]
+  val title = elt "title" "CakeML Regression Test"
+  val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
+  val header = head [meta,stylesheet,title,shortcut]
+  val body = element "body" []
+  val h2 = elt "h2"
+  val h3 = elt "h3"
+  val h4 = elt "h4"
+  val pre = elt "pre"
+  val time = elt "time"
+  fun a href body = element "a" [("href",href)] [body]
+  val li = elt "li"
+  fun ul ls = element "ul" [] (List.map li ls)
+end
+
+datatype html_request = Overview | DisplayJob of id
+
+local
+  open HTML
+in
+
+  fun job_link id =
+    let val id = Int.toString id in
+      a (String.concat["job/",id]) id
+    end
+
+  fun html_job_list (q,ids) =
+    [h2 q, ul (List.map job_link ids)]
+
+  (*
+  fun shorten n s =
+    let
+      val z = String.size s
+    in
+      if z <= n then s
+      else Substring.string(Substring.trimr (z-n) (Substring.full s))
+    end
+  *)
+
+  val cakeml_github = "https://github.com/CakeML/cakeml"
+  val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
+  fun cakeml_commit_link s =
+    a (String.concat[cakeml_github,"/commit/",s]) s
+  fun hol_commit_link s =
+    a (String.concat[hol_github,"/commit/",s]) s
+  fun cakeml_pr_link ss =
+    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
+
+  fun escape_char #"<" = "&lt;"
+    | escape_char #">" = "&gt;"
+    | escape_char c = String.str c
+  val escape = String.translate escape_char
+
+  fun extract_word s =
+    let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
+    in (s1, Substring.string s2) end
+
+  val pretty_date_fmt = "%b %d %H:%M:%S"
+
+  fun process s =
+    let
+      val inp = TextIO.openString s
+      fun read_line () = Option.valOf (TextIO.inputLine inp)
+      val prefix = "CakeML: "
+      val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+      val acc = [String.concat[h4 prefix,cakeml_commit_link sha,"\n"]]
+      val acc = escape (read_line ()) :: acc (* msg *)
+      val line = read_line ()
+      val (line,acc) =
+        if String.isPrefix "#" line then
+          let
+            val ss = Substring.full line
+            val (pr,rest) = Substring.splitl (not o Char.isSpace) ss
+            val line = String.concat[cakeml_pr_link pr, escape (Substring.string rest)]
+            val acc = line::acc
+            val prefix = "Merging into: "
+            val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+            val acc = (String.concat[h4 prefix,cakeml_commit_link sha,"\n"])::acc
+            val acc = escape (read_line ()) :: acc
+          in (read_line (), acc) end
+        else (line,acc)
+      val prefix = "HOL: "
+      val sha = extract_prefix_trimr prefix line handle Option => cgi_die ["failed to find line ",prefix]
+      val acc = (String.concat[h4 prefix,hol_commit_link sha,"\n"])::acc
+      val acc = escape (read_line ()) :: acc (* msg *)
+      exception Return of string list
+      val acc =
+        let
+          val prefix = "Machine: "
+          val line = read_line () handle Option => raise (Return acc)
+          val name = extract_prefix_trimr prefix line handle Option => raise (Return (line::acc))
+          val acc = (String.concat[h4 prefix,escape name,"\n"])::acc
+          val prefix = "Claimed: "
+          val line = read_line () handle Option => raise (Return acc)
+          val date = extract_prefix_trimr prefix line handle Option => raise (Return (line::acc))
+          val (date,e) = ReadJSON.bare_read_date (Substring.full date) handle Option => raise (Return acc)
+        in
+          (String.concat[prefix, time (Date.fmt pretty_date_fmt date),"\n\n"])::acc
+        end handle Return acc => TextIO.inputAll inp :: acc
+      fun loop acc =
+        let
+          val line = read_line()
+        in
+          let
+            val (date,rest) = ReadJSON.bare_read_date (Substring.full line)
+            val line =
+              String.concat
+               [time (Date.fmt pretty_date_fmt date),
+                escape (Substring.string rest)]
+          in
+            loop (line::acc)
+          end handle Option => TextIO.inputAll inp :: acc
+        end handle Option => acc
+    in
+      String.concat(List.rev (loop acc)) before
+      TextIO.closeIn inp
+    end
+
+  fun req_body Overview =
+    List.concat
+      (ListPair.map html_job_list
+         (["Waiting","Running","Stopped"],
+          [waiting(),running(),stopped()]))
+  | req_body (DisplayJob id) =
+    let
+      val jid = Int.toString id
+      val q = queue_of_job jid
+      val f = OS.Path.concat(q,jid)
+      val s = file_to_string f
+    in
+      [a ".." "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process s)]
+    end
+
+  fun html_response req =
+    let
+      val () = TextIO.output(TextIO.stdOut, html_response_header)
+      val () = TextIO.output(TextIO.stdOut, html ([header,body (req_body req)]))
+    in () end
+
 end
 
 end

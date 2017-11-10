@@ -149,7 +149,7 @@ type bare_pr = { head_sha : string, base_sha : string }
 datatype bare_integration = Bbr of string | Bpr of bare_pr
 type bare_snapshot = { bcml : bare_integration, bhol : string }
 
-fun extract_sha prefix line =
+fun extract_prefix_trimr prefix line =
   let
     val line = Substring.full line
     val () = if Substring.isPrefix prefix line then () else raise Option
@@ -163,7 +163,7 @@ fun read_bare_snapshot inp =
   let
     fun read_line () = Option.valOf (TextIO.inputLine inp)
 
-    val head_sha = extract_sha "CakeML: " (read_line())
+    val head_sha = extract_prefix_trimr "CakeML: " (read_line())
     val _ = read_line ()
     val line = read_line ()
     val (line,base_sha) =
@@ -171,9 +171,9 @@ fun read_bare_snapshot inp =
         let
           val line = read_line ()
           val _ = read_line ()
-        in (read_line(), SOME (extract_sha "Merging into: " line)) end
+        in (read_line(), SOME (extract_prefix_trimr "Merging into: " line)) end
       else (line, NONE)
-    val hol_sha = extract_sha "HOL: " line
+    val hol_sha = extract_prefix_trimr "HOL: " line
     val () = TextIO.closeIn inp
   in
     { bcml = case base_sha
