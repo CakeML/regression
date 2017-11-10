@@ -38,6 +38,20 @@ structure utilLib = struct
 
   val curl_path = "/usr/bin/curl"
 
+  fun extract_prefix_trimr prefix line =
+    let
+      val line = Substring.full line
+      val () = if Substring.isPrefix prefix line then () else raise Option
+    in
+      Substring.string(
+        Substring.dropr Char.isSpace
+          (Substring.triml (String.size prefix) line))
+    end
+
+  fun extract_word s =
+    let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
+    in (s1, Substring.string s2) end
+
   local
     open Unix
   in

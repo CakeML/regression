@@ -311,16 +311,16 @@ fun validate_resume jid bhol bcml =
     val () = diag ["checking HOL for resuming job ",jid]
     val () = OS.FileSys.chDir HOLDIR
     val head = system_output git_head
-    val () = assert (head = bhol) ["wrong HOL commit"]
+    val () = assert (String.isPrefix bhol head) ["wrong HOL commit: wanted ",bhol,", at ",head]
     val () = OS.FileSys.chDir OS.Path.parentArc
     val () = diag ["checking CakeML for resuming job ",jid]
     val () = OS.FileSys.chDir CAKEMLDIR
     val () =
       case bcml of
-        Bbr sha => assert (system_output git_head = sha) ["wrong CakeML commit"]
+        Bbr sha => assert (String.isPrefix sha (system_output git_head)) ["wrong CakeML commit: wanted ",sha]
       | Bpr {head_sha, base_sha} =>
-        (assert (system_output git_head = base_sha) ["wrong CakeML base commit"];
-         assert (system_output git_merge_head = head_sha) ["wrong CakeML head commit"])
+        (assert (String.isPrefix base_sha (system_output git_head)) ["wrong CakeML base commit: wanted ",base_sha];
+         assert (String.isPrefix head_sha (system_output git_merge_head)) ["wrong CakeML head commit: wanted ",head_sha])
     val () = OS.FileSys.chDir OS.Path.parentArc
   in
     true
