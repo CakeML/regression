@@ -9,8 +9,8 @@
     lock
   to ensure this.
 
-  Job lists are implemented as three directories:
-    waiting, running, stopped
+  Job lists are implemented as directories:
+    waiting, running, stopped, errored
 
   Jobs are implemented as files with their id as filename.
 
@@ -150,7 +150,7 @@ fun print_job out (j:job) =
     val () = List.app (print_log_entry out) (#output j)
   in () end
 
-val queue_dirs = ["waiting","running","stopped"]
+val queue_dirs = ["waiting","running","stopped","errored"]
 
 local
   open OS.FileSys
@@ -201,6 +201,7 @@ end
 val waiting = read_list "waiting"
 val running = read_list "running"
 val stopped = read_list "stopped"
+val errored = read_list "errored"
 
 fun queue_of_job f =
   let
@@ -628,8 +629,8 @@ in
   fun req_body Overview =
     List.concat
       (ListPair.map html_job_list
-         (["Waiting","Running","Stopped"],
-          [waiting(),running(),stopped()]))
+         (["Waiting","Running","Stopped","Errored"],
+          [waiting(),running(),stopped(),errored()]))
     @ [a "api/refresh" "refresh from GitHub"]
   | req_body (DisplayJob id) =
     let

@@ -117,24 +117,18 @@ fun stop id =
     (* TODO: send email *)
   end
 
-fun retry id =
+fun error id =
   let
     val f = Int.toString id
     val old = OS.Path.concat("stopped",f)
-    val () = cgi_assert (OS.FileSys.access(old,[OS.FileSys.A_READ])) ["job ",f," is not stopped: cannot retry"]
-    val id = first_unused_id (waiting()@running()@stopped()) 1
-    val new = OS.Path.concat("waiting",Int.toString id)
-    val inp = TextIO.openIn old
-    val out = TextIO.openOut new
-    fun loop last =
-      case TextIO.inputLine inp of NONE => cgi_die ["stopped job ",f," has invalid file format"]
-      | SOME line => (TextIO.output(out,line);
-                      if last then () else
-                      loop (String.isPrefix "HOL: " line))
-    val () = loop false
-    val () = TextIO.closeOut out
-    val () = TextIO.closeIn inp
-  in id end
+    val new = OS.Path.concat("errored",f)
+  in
+    if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
+      if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
+        cgi_die ["job ",f, " is both stopped and errored"]
+      else OS.FileSys.rename{old = old, new = new}
+    else cgi_die ["job ",f," is not stopped: cannot error"]
+  end
 
 fun refresh () =
   let
@@ -145,7 +139,7 @@ fun refresh () =
     val stopped_ids = stopped()
     val snapshots = filter_out "running" running_ids snapshots
     val snapshots = filter_out "stopped" stopped_ids snapshots
-    val avoid_ids = running_ids @ stopped_ids
+    val avoid_ids = running_ids @ stopped_ids @ errored()
     val () = if List.null snapshots then ()
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
   in () end
@@ -189,14 +183,12 @@ in
     text_response (
       case api of
         Waiting => id_list (waiting())
-      | Running => id_list (running())
-      | Stopped => id_list (stopped())
       | Refresh => (refresh (); refresh_response)
       | Job id => file_to_string (job id)
       | Claim(id,name) => (claim id name; claim_response)
       | Append(id,line) => (append id line; append_response)
       | Stop id => (stop id; stop_response)
-      | Retry id => String.concat["retried as job ",Int.toString(retry id),"\n"]
+      | Error id => (error id; error_response)
     ) handle e => cgi_die [exnMessage e]
 end
 
