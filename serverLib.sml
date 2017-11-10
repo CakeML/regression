@@ -590,9 +590,22 @@ in
   fun format_rusage s =
     let
       val timing = String.tokens Char.isSpace s
-      val secs = List.nth(timing,0)
-      val () = if List.all Char.isDigit (String.explode secs) then () else raise Option
-      val ts = Option.valOf(Int.fromString secs)
+      val secs_millisecs = String.tokens (equal #".") (List.nth(timing,0))
+      val whole_secs = List.nth(secs_millisecs,0)
+      val ts =
+        if List.all Char.isDigit (String.explode whole_secs)
+        then Option.valOf(Int.fromString whole_secs)
+        else (* TODO: only for supporting legacy %E format
+                      could just update the files and remove this *)
+          let val ls = String.tokens (equal #":") whole_secs
+          in
+            Option.valOf(Int.fromString(List.nth(ls,0))) * 60 * 60 +
+            Option.valOf(Int.fromString(List.nth(ls,1))) * 60 +
+            Option.valOf(Int.fromString(List.nth(ls,2)))
+            handle Subscript =>
+              Option.valOf(Int.fromString(List.nth(ls,0))) * 60 +
+              Option.valOf(Int.fromString(List.nth(ls,1)))
+          end
       val tm = Int.quot(ts,60) val ss = Int.rem(ts,60)
       val hh = Int.quot(tm,60) val mm = Int.rem(tm,60)
       val tK = Option.valOf(Int.fromString(List.nth(timing,1)))
