@@ -567,11 +567,9 @@ in
                     span (String.concat ["(", typ, ")"])]
     end
 
-  fun capitalise s = String.concat[String.str(Char.toUpper(String.sub(s,0))),String.extract(s,1,NONE)]
-
   fun html_job_list (q,ids) =
     if List.null ids then []
-    else [h2 (capitalise q), ul (List.map (job_link q) ids)]
+    else [h2 q, ul (List.map (job_link q) ids)]
 
   val cakeml_github = "https://github.com/CakeML/cakeml"
   val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"

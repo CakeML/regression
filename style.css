@@ -1,6 +1,9 @@
 h2, h3, h3 a, a:hover { color: #e80 }
-pre { font-size: 18px; }
+h2 { text-transform: capitalize; }
+h3 { font-size: 22px; }
+pre { font-size: 20px; }
 pre strong { display: block; margin-top: 1em; }
+pre time { font-size: 18px; }
 ul { list-style-type: none; font-size: 24px; }
 li { display: inline; padding: 1em; }
 li span { font-size: 18px; }
