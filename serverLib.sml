@@ -199,7 +199,7 @@ in
     in loop () end
 end
 
-val waiting = read_list "waiting"
+val waiting = List.rev o read_list "waiting"
 val running = read_list "running"
 val stopped = read_list "stopped"
 val errored = read_list "errored"

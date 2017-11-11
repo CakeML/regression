@@ -13,7 +13,7 @@ structure utilLib = struct
 
   fun insert x [] = [x]
     | insert x (y::xs) =
-      if x <= y then x::y::xs
+      if x >= y then x::y::xs
       else y::(insert x xs)
 
   val until_space =
