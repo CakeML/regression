@@ -1,6 +1,3 @@
-TODO: Write help/usage interface for worker
-  Make the program more self-documenting.
-
 TODO: Make server send email to builds@cakeml.org when a job is stopped
 
 TODO: Make server stop jobs that have been running too long

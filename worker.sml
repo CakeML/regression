@@ -15,14 +15,22 @@
   is currently available. This means polling or work notifications can be
   handled externally if desired.
 
-  Summary of options:
-    --no-poll   : Exit when no waiting jobs are found rather than polling.
-                  Will still check for more waiting jobs after completing a job.
-    --no-loop   : Exit after finishing a job, do not check for more waiting jobs.
-    --select id : Ignore the waiting jobs list and instead attempt to claim job <id>.
-    --resume id : Assume job <id> has previously been claimed by this worker and
-                  attempt to start running it again. If the job fails again,
-                  exit (even without --no-loop).
+*)
+
+val server = "https://cakeml.org/regression.cgi"
+val usage_string = String.concat[
+  "worker [options]\n\n",
+  "Runs waiting jobs from ",server,"/\n\n",
+  "Summary of options:\n",
+  "  --no-poll   : Exit when no waiting jobs are found rather than polling.\n",
+  "                Will still check for more waiting jobs after completing a job.\n",
+  "  --no-loop   : Exit after finishing a job, do not check for more waiting jobs.\n",
+  "  --select id : Ignore the waiting jobs list and instead attempt to claim job <id>.\n",
+  "  --resume id : Assume job <id> has previously been claimed by this worker and\n",
+  "                attempt to start running it again. If the job fails again,\n",
+  "                exit (even without --no-loop).\n"];
+
+(*
 
   All work will be carried out in the current directory
   (or subdirectories of it) with no special permissions.
@@ -116,7 +124,7 @@ val system_capture_append = system_capture_with " >>"
 val poll_delay = Time.fromSeconds(60 * 30)
 
 structure API = struct
-  val endpoint = "https://cakeml.org/regression.cgi/api"
+  val endpoint = String.concat[server,"/api"]
   fun curl_cmd api = (curl_path,
     ["--silent","--show-error"] @ api_curl_args api @ [String.concat[endpoint,api_to_string api]])
   val send = system_output o curl_cmd
@@ -261,15 +269,15 @@ in
                       " '",holdir,"/bin/Holmake' --qof"]
       val cakemldir = OS.Path.concat(root,CAKEMLDIR)
       val () = OS.FileSys.chDir CAKEMLDIR
-               handle e as OS.SysErr _ => die ["failed to enter ",CAKEMLDIR,
+               handle e as OS.SysErr _ => die ["Failed to enter ",CAKEMLDIR,
                                                "\n","root: ",root,
                                                "\n",exnMessage e]
       val () = assert (OS.FileSys.getDir() = cakemldir) ["impossible failure"]
       val seq = TextIO.openIn("developers/build-sequence")
-                handle e as OS.SysErr _ => die ["failed to open build-sequence: ",exnMessage e]
+                handle e as OS.SysErr _ => die ["Failed to open build-sequence: ",exnMessage e]
       val can_skip =
         (if resumed then (not o equal (file_to_string resume_file)) else no_skip)
-        handle (e as IO.Io _) => die["failed to load resume file: ",exnMessage e]
+        handle (e as IO.Io _) => die["Failed to load resume file: ",exnMessage e]
       fun loop can_skip =
         case TextIO.inputLine seq of NONE => true
         | SOME line =>
@@ -308,19 +316,19 @@ end
 
 fun validate_resume jid bhol bcml =
   let
-    val () = diag ["checking HOL for resuming job ",jid]
+    val () = diag ["Checking HOL for resuming job ",jid]
     val () = OS.FileSys.chDir HOLDIR
     val head = system_output git_head
-    val () = assert (String.isPrefix bhol head) ["wrong HOL commit: wanted ",bhol,", at ",head]
+    val () = assert (String.isPrefix bhol head) ["Wrong HOL commit: wanted ",bhol,", at ",head]
     val () = OS.FileSys.chDir OS.Path.parentArc
-    val () = diag ["checking CakeML for resuming job ",jid]
+    val () = diag ["Checking CakeML for resuming job ",jid]
     val () = OS.FileSys.chDir CAKEMLDIR
     val () =
       case bcml of
-        Bbr sha => assert (String.isPrefix sha (system_output git_head)) ["wrong CakeML commit: wanted ",sha]
+        Bbr sha => assert (String.isPrefix sha (system_output git_head)) ["Wrong CakeML commit: wanted ",sha]
       | Bpr {head_sha, base_sha} =>
-        (assert (String.isPrefix base_sha (system_output git_head)) ["wrong CakeML base commit: wanted ",base_sha];
-         assert (String.isPrefix head_sha (system_output git_merge_head)) ["wrong CakeML head commit: wanted ",head_sha])
+        (assert (String.isPrefix base_sha (system_output git_head)) ["Wrong CakeML base commit: wanted ",base_sha];
+         assert (String.isPrefix head_sha (system_output git_merge_head)) ["Wrong CakeML head commit: wanted ",head_sha])
     val () = OS.FileSys.chDir OS.Path.parentArc
   in
     true
@@ -336,22 +344,23 @@ fun work resumed id =
     let
       val inp = TextIO.openString response
       val {bcml,bhol} = read_bare_snapshot inp
-                        handle Option => die["job ",jid," returned invalid response"]
+                        handle Option => die["Job ",jid," returned invalid response"]
       val () = TextIO.closeIn inp
       val built_hol =
         if resumed then validate_resume jid bhol bcml
         else let
-          val () = diag ["preparing HOL for job ",jid]
+          val () = diag ["Preparing HOL for job ",jid]
           val reused = prepare_hol bhol
-          val () = diag ["preparing CakeML for job ",jid]
+          val () = diag ["Preparing CakeML for job ",jid]
           val () = prepare_cakeml bcml
-          val () = diag ["building HOL for job ",jid]
+          val () = diag ["Building HOL for job ",jid]
+          val () = API.append id "Building HOL"
         in
           build_hol reused id
         end
     in
       built_hol andalso
-      (diag ["running regression for job ",jid];
+      (diag ["Running regression for job ",jid];
        run_regression resumed id)
     end
   end
@@ -365,6 +374,9 @@ fun get_int_arg name [] = NONE
 fun main () =
   let
     val args = CommandLine.arguments()
+    val () = if List.exists (fn a => a="--help" orelse a="-h" orelse a="-?") args
+             then (TextIO.output(TextIO.stdOut, usage_string); OS.Process.exit OS.Process.success)
+             else ()
     val no_poll = List.exists (equal"--no-poll") args
     val no_loop = List.exists (equal"--no-loop") args
     val resume = get_int_arg "--resume" args
@@ -380,21 +392,23 @@ fun main () =
             (String.tokens Char.isSpace (API.send Waiting))
       in
         case waiting_ids of [] =>
-          if no_poll then ()
-          else (OS.Process.sleep poll_delay; loop NONE)
+          if no_poll then diag ["No waiting jobs. Exiting."]
+          else (diag ["No waiting jobs. Will check again later."]; OS.Process.sleep poll_delay; loop NONE)
         | (id::_) => (* could prioritise for ids that match our HOL dir *)
           let
+            val jid = Int.toString id
+            val () = diag ["About to work on ",server,"/job/",jid]
             val resumed = Option.isSome resume
             val response = if resumed then claim_response
                            else API.send (Claim(id,name))
             val success =
               if response=claim_response
               then work resumed id
-              else (warn ["Claim of job ",Int.toString id," failed: ",response]; false)
+              else (warn ["Claim of job ",jid," failed: ",response]; false)
           in
             if no_loop orelse (resumed andalso not success)
-            then ()
-            else loop NONE
+            then diag ["Finished work. Exiting."]
+            else (diag ["Finished work. Looking for more."]; loop NONE)
           end
-      end handle e => die ["unexpected failure: ",exnMessage e]
+      end handle e => die ["Unexpected failure: ",exnMessage e]
   in loop resume end
