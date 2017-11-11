@@ -28,7 +28,9 @@ val usage_string = String.concat[
   "  --select id : Ignore the waiting jobs list and instead attempt to claim job <id>.\n",
   "  --resume id : Assume job <id> has previously been claimed by this worker and\n",
   "                attempt to start running it again. If the job fails again,\n",
-  "                exit (even without --no-loop).\n"];
+  "                exit (even without --no-loop).\n",
+  "  --error id  : Mark job <id> as having errored, i.e., stopped without a proper\n",
+  "                success or failure, then exit.\n"];
 
 (*
 
@@ -138,6 +140,9 @@ structure API = struct
   fun stop id =
     let val response = send (Stop id)
     in assert (response=stop_response) ["Unexpected stop response: ",response] end
+  fun error id =
+    let val response = send (Error id)
+    in assert (response=error_response) ["Unexpected error response: ",response] end
   fun log id file =
     let val response = system_output (curl_log id file)
     in assert (response=log_response) ["Unexpected log response: ",response] end
@@ -377,6 +382,10 @@ fun main () =
     val () = if List.exists (fn a => a="--help" orelse a="-h" orelse a="-?") args
              then (TextIO.output(TextIO.stdOut, usage_string); OS.Process.exit OS.Process.success)
              else ()
+    val () = case get_int_arg "--error" args of NONE => ()
+             | SOME id => (
+                 diag ["Marking job ",Int.toString id," as errored."];
+                 API.error id; OS.Process.exit OS.Process.success)
     val no_poll = List.exists (equal"--no-poll") args
     val no_loop = List.exists (equal"--no-loop") args
     val resume = get_int_arg "--resume" args

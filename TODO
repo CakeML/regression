@@ -3,12 +3,6 @@ TODO: Make server send email to builds@cakeml.org when a job is stopped
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
-TODO: Add interface for disowning jobs (marking them as errored)
-  Currently, you can manually error a job that is supposedly running and claimed
-  by a worker that has gone rogue or died. It might be nice to support this
-  programmatically as an option to the worker, so it can make the appropriate
-  API calls.
-
 TODO: Replace calls to the OS shell with SML Basis functionality
   In worker.sml there is a call to OS.Process.system that passes quite a lot of
   work off to the shell: setting environment variables, executing a subprocess,
