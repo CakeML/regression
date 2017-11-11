@@ -18,8 +18,8 @@
 *)
 
 val server = "https://cakeml.org/regression.cgi"
-val usage_string = String.concat[
-  "worker [options]\n\n",
+fun usage_string name = String.concat[
+  name, " [options]\n\n",
   "Runs waiting jobs from ",server,"/\n\n",
   "Summary of options:\n",
   "  --no-poll   : Exit when no waiting jobs are found rather than polling.\n",
@@ -380,7 +380,7 @@ fun main () =
   let
     val args = CommandLine.arguments()
     val () = if List.exists (fn a => a="--help" orelse a="-h" orelse a="-?") args
-             then (TextIO.output(TextIO.stdOut, usage_string); OS.Process.exit OS.Process.success)
+             then (TextIO.output(TextIO.stdOut, usage_string(CommandLine.name())); OS.Process.exit OS.Process.success)
              else ()
     val () = case get_int_arg "--error" args of NONE => ()
              | SOME id => (
