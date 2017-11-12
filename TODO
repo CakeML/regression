@@ -5,6 +5,10 @@ TODO: Show more information on overview page
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
+TODO: Add http (or other) authentication for using the API
+  This could also be used to tell out-of-date worker programs that they need to
+  be updated (because their auth token won't work any more)
+
 TODO: Consider using AJAX or whatever to refresh the html interface dynamically?
 
 TODO: Replace calls to the OS shell with SML Basis functionality
