@@ -17,6 +17,10 @@ TODO: Add interface to stop jobs. Rethink job categorisation.
 TODO: Rename "error" to "abort"?
   "error" is not really a verb
 
+TODO: Show date/time of commits in fromNow() format
+  This would require putting the full ISO date there first,
+  and wrapping in a time element in the HTML interface
+
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
