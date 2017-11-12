@@ -1,3 +1,22 @@
+TODO: Tweak waiting queue semantics
+  New Pull Request jobs that don't have a different head commit are probably
+  not so useful. A new PR job should only be added if there isn't a currently
+  running job with the same head commit. (It can be added if there are only
+  stopped/errored jobs with the same head commit, when it has a new base
+  commit or HOL commit.)
+
+TODO: Add interface to stop jobs. Rethink job categorisation.
+  Should the job page have a link for cancelling that job?
+  If so, how would workers know to do so? Polling?
+  Currently the interface, if you control a worker, is:
+    CTRL-C to stop building, then manually hit the /api/stop/n URL to move it
+    to Stopped, then if desired call the worker with --error to move it to
+    Errored.
+  Should the worker have a --stop command? Or --fail/--succeed?
+
+TODO: Rename "error" to "abort"?
+  "error" is not really a verb
+
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
