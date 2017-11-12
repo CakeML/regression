@@ -6,44 +6,28 @@ It also provides a hook for refreshing the queues:
   If there are new jobs on GitHub, they will be added as waiting.
   If there are stale jobs, they will be removed.
 
-each job is on exactly one list: waiting, running, stopped
-if a job changes list, it can only move to the right
+Each job is on exactly one list: waiting, running, stopped, errored.
+If a job changes list, it can only move to the right.
 
-Refreshing the queues:
+The waiting queue is refreshed as follows:
 
-  Behaviours:
+  1. Clear the waiting jobs list
+  2. Get the current snapshots from GitHub (see below)
+  3. Filter out from the snapshots:
+    - any with the same CakeML head commit as a running job
+    - any with the same snapshot (head+base+HOL commits) as a stopped job
+  4. Add the remaining snapshots to the waiting jobs list
 
-    1. add a job to the waiting list:
-      - create a new job id
-      - the commits for the job satisfy the following:
-        - they are the current commits (on GitHub) for a particular target
-        - there are no other jobs with the same commits
+The running queue may be refreshed by removing timed out jobs. (Not implemented yet.)
 
-    2. remove a job from the waiting list:
-      - if it does not have the current commits (on GitHub) for any target, or
-      - if there are other running or waiting jobs for the same commits
-          (this should never happen -- not checking it currently)
-          (we don't count duplicate stopped jobs since
-           they might have been retried)
-      - the removed job's id number could be re-used (but is that worthwhile?)
-      - the race with workers trying to obtain this job is handled by the global
-        lock on queues. either the job is claimed before it can be removed, or
-        removed before it can be claimed.
-
-    3. move a job from running to stopped:
-      - if the time since it started is too long
-      - adds a note, "timed out", to the output
-      - does the stop API actions
-
-  Targets:
+Current snapshots from GitHub:
 
     CakeML:
       - branch "master"
       - each open, mergeable pull request
         in this case, there are two commits:
-          - the pull request commit
-          - the master commit to merge into
-        but they move together (as captured by the state of the PR on GitHub)
+          - the pull request commit (head)
+          - the master commit to merge into (base)
     HOL:
       - branch "master"
 *)
@@ -72,7 +56,7 @@ fun claim id name =
     val () = print_claimed out (name,Date.fromTimeUniv(Time.now()))
     val () = TextIO.closeOut out
     val inp = TextIO.openIn new
-    val sha = read_head_sha inp
+    val sha = get_head_sha (read_bare_snapshot inp)
               handle Option => cgi_die ["job ",f," has invalid file format"]
     val () = TextIO.closeIn inp
   in
@@ -109,7 +93,7 @@ fun stop id =
         else OS.FileSys.rename{old = old, new = new}
       else cgi_die ["job ",f," is not running: cannot stop"]
     val inp = TextIO.openIn new
-    val sha = read_head_sha inp
+    val sha = get_head_sha (read_bare_snapshot inp)
     val status = read_status inp
     val () = TextIO.closeIn inp
     val () = GitHub.set_status f sha status
@@ -138,8 +122,8 @@ fun refresh () =
     (* TODO: stop timed out jobs *)
     val running_ids = running()
     val stopped_ids = stopped()
-    val snapshots = filter_out "running" running_ids snapshots
-    val snapshots = filter_out "stopped" stopped_ids snapshots
+    val snapshots = filter_out (same_head "running") running_ids snapshots
+    val snapshots = filter_out (same_snapshot "stopped") stopped_ids snapshots
     val avoid_ids = running_ids @ stopped_ids @ errored()
     val () = if List.null snapshots then ()
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)

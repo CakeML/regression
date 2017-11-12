@@ -224,20 +224,20 @@ fun read_job_snapshot q id : bare_snapshot =
     val () = TextIO.closeIn inp
   in bs end
 
-fun read_head_sha inp =
-  let
-    val {bcml,...} = read_bare_snapshot inp
-  in
-    case bcml of Bbr sha => sha | Bpr {head_sha,...} => head_sha
-  end
+fun get_head_sha ({bcml,...}:bare_snapshot) =
+  case bcml of Bbr sha => sha | Bpr {head_sha,...} => head_sha
 
-fun filter_out q ids snapshots =
+fun same_snapshot q = equal o read_job_snapshot q
+fun same_head q id =
+  equal (get_head_sha (read_job_snapshot q id)) o get_head_sha
+
+fun filter_out eq ids snapshots =
   let
     exception Return
     fun check_null x = if List.null x then raise Return else x
     fun remove_all_matching_this_id (id,snapshots) =
       check_null
-        (List.filter (not o (equal (read_job_snapshot q id)) o bare_of_snapshot) snapshots)
+        (List.filter (not o eq id o bare_of_snapshot) snapshots)
   in
     List.foldl remove_all_matching_this_id snapshots ids
     handle Return => []
