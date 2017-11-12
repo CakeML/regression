@@ -75,7 +75,9 @@ type line = string
 fun check_id f id =
   0 <= id andalso Int.toString id = f
 
-val server = "https://cakeml.org/regression.cgi"
+val host = "https://cakeml.org"
+val base_url = "/regression.cgi"
+val server = String.concat[host,base_url]
 
 datatype api = Waiting | Refresh
              | Job of id | Claim of id * worker_name

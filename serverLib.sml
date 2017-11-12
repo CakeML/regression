@@ -589,7 +589,7 @@ in
         case last_date of NONE => ""
         | SOME date => time_ago date
     in
-      String.concat[a (String.concat["job/",jid]) jid, " ",
+      String.concat[a (String.concat[base_url,"/job/",jid]) jid, " ",
                     span attrs ["(", typ, ")",ago_string]]
     end
 
@@ -734,7 +734,7 @@ in
       (ListPair.map html_job_list
          (queue_dirs,
           List.map (fn f => f()) queue_funs))
-    @ [a "api/refresh" "refresh from GitHub"]
+    @ [a (String.concat[base_url,"/api/refresh"]) "refresh from GitHub"]
   | req_body (DisplayJob id) =
     let
       val jid = Int.toString id
@@ -742,7 +742,7 @@ in
       val f = OS.Path.concat(q,jid)
       val s = file_to_string f
     in
-      [a ".." "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process s)]
+      [a base_url "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process s)]
     end
 
   fun html_response req =

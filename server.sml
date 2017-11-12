@@ -164,6 +164,7 @@ fun get_api () =
           (case String.tokens (equal #"/") path_info of
             ["job",n] => Option.map (Html o DisplayJob) (id_from_string n)
           | _ => SOME (Html Overview))
+  | (NONE, SOME "GET") => SOME (Html Overview)
   | (SOME path_info, SOME "POST")
       => (case String.tokens (equal #"/") path_info of
             ["api","log",n] =>
