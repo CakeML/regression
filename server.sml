@@ -112,9 +112,10 @@ fun stop id =
     val sha = read_head_sha inp
     val status = read_status inp
     val () = TextIO.closeIn inp
+    val () = GitHub.set_status f sha status
   in
-    GitHub.set_status f sha status
-    (* TODO: send email *)
+    send_email (String.concat["Job ",f,": ",#2 status])
+               (String.concat["See ",server,"/job/",f,"\n"])
   end
 
 fun error id =

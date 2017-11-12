@@ -261,6 +261,20 @@ fun add_waiting avoid_ids (snapshot,id) =
     val () = TextIO.closeOut out
   in id+1 end
 
+local
+  val to_address = "builds@cakeml.org"
+  val email_file = "email"
+in
+  fun send_email subject body =
+    let
+      val () = output_to_file (email_file,body)
+      val mail_cmd = ("/usr/bin/mail",
+        ["-s",subject,"-m",email_file,"-.",to_address])
+    in
+      system_output cgi_die mail_cmd
+    end
+end
+
 structure GitHub = struct
   val token = until_space (file_to_string "token")
   val graphql_endpoint = "https://api.github.com/graphql"
@@ -277,7 +291,7 @@ structure GitHub = struct
   fun status_json id (st,desc) =
     String.concat[
       "{\"state\":\"",st,"\",",
-      "\"target_url\":\"https://cakeml.org/regression.cgi/job/",id,"\",",
+      "\"target_url\":\"",server,"/job/",id,"\",",
       "\"description\":\"",desc,"\",",
       "\"context\":\"cakeml-regression-test\"}"]
 

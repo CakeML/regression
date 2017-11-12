@@ -36,6 +36,12 @@ structure utilLib = struct
   fun file_to_string f =
     let val inp = TextIO.openIn f in TextIO.inputAll inp before TextIO.closeIn inp end
 
+  fun output_to_file (f,s) =
+    let
+      val out = TextIO.openOut f
+      val () = TextIO.output(out,s)
+    in TextIO.closeOut out end
+
   val curl_path = "/usr/bin/curl"
 
   fun extract_prefix_trimr prefix line =

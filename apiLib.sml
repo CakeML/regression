@@ -75,6 +75,8 @@ type line = string
 fun check_id f id =
   0 <= id andalso Int.toString id = f
 
+val server = "https://cakeml.org/regression.cgi"
+
 datatype api = Waiting | Refresh
              | Job of id | Claim of id * worker_name
              | Append of id * line (* not including newline *)

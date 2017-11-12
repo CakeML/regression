@@ -17,7 +17,8 @@
 
 *)
 
-val server = "https://cakeml.org/regression.cgi"
+use "apiLib.sml"; open apiLib
+
 fun usage_string name = String.concat[
   name, " [options]\n\n",
   "Runs waiting jobs from ",server,"/\n\n",
@@ -74,10 +75,6 @@ fun usage_string name = String.concat[
     7. Stop the job
 *)
 
-use "apiLib.sml";
-
-open apiLib
-
 fun warn ls = (
   TextIO.output(TextIO.stdErr,String.concat ls);
   TextIO.output(TextIO.stdErr,"\n"))
@@ -102,12 +99,6 @@ fun file_to_line f =
     case lopt of NONE => ""
     | SOME line => String.extract(line,0,SOME(String.size line - 1))
   end
-
-fun output_to_file (f,s) =
-  let
-    val out = TextIO.openOut f
-    val () = TextIO.output(out,s)
-  in TextIO.closeOut out end
 
 val system_output = system_output die
 
