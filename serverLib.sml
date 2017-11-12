@@ -515,6 +515,18 @@ in
     handle ReadFailure s => cgi_die["Could not read response from GitHub: ",s]
 end
 
+fun read_last_date inp =
+  let
+    fun loop acc =
+      case TextIO.inputLine inp of NONE => acc
+      | SOME line =>
+        let
+          val (date,_) = ReadJSON.bare_read_date (Substring.full line)
+        in
+          loop (SOME date)
+        end handle Option => loop acc
+  in loop NONE end
+
 val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
 
 structure HTML = struct
@@ -533,8 +545,10 @@ structure HTML = struct
     "function localiseTimes() {",
     "var ls = document.getElementsByTagName(\"time\");",
     "for (var i = 0; i < ls.length; i++) {",
+    "if (ls[i].getAttribute(\"class\") == \"ago\") {",
+    "ls[i].innerHTML = \" [\" + moment(ls[i].getAttribute(\"datetime\")).fromNow() + \"]\";} else {",
     "ls[i].innerHTML = moment(ls[i].getAttribute(\"datetime\")).format(\"",
-    pretty_date_moment,"\");}}"]
+    pretty_date_moment,"\");}}}"]
   val title = elt "title" "CakeML Regression Test"
   val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
   val header = head [meta,stylesheet,title,shortcut,momentjs,localisejs]
@@ -544,6 +558,7 @@ structure HTML = struct
   val strong = elt "strong"
   val pre = elt "pre"
   fun time d = element "time" [("datetime",machine_date d)] [pretty_date d]
+  fun time_ago d = element "time" [("datetime",machine_date d),("class","ago")] [" [",pretty_date d,"]"]
   fun a href body = element "a" [("href",href)] [body]
   fun span attrs strs = element "span" attrs strs
   fun status_attrs Success = [("class","success")]
@@ -568,10 +583,14 @@ in
                 handle IO.Io _ => cgi_die ["cannot open ",f]
                      | Option => cgi_die [f," has invalid file format"]
       val attrs = if q = "stopped" then status_attrs (read_status inp) else []
+      val last_date = if q = "running" then read_last_date inp else NONE
       val () = TextIO.closeIn inp
+      val ago_string =
+        case last_date of NONE => ""
+        | SOME date => time_ago date
     in
       String.concat[a (String.concat["job/",jid]) jid, " ",
-                    span attrs ["(", typ, ")"]]
+                    span attrs ["(", typ, ")",ago_string]]
     end
 
   fun html_job_list (q,ids) =

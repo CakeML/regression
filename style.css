@@ -4,6 +4,7 @@ h3 { font-size: 22px; }
 pre { font-size: 20px; }
 pre strong { display: block; margin-top: 1em; }
 pre time { font-size: 18px; }
+time.ago { font-size: 14px; }
 ul { list-style-type: none; font-size: 24px; }
 li { display: inline; padding: 1em; }
 li span { font-size: 18px; }
