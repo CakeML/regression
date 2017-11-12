@@ -185,7 +185,7 @@ fun link_poly_includes () =
     if OS.FileSys.access(f,[OS.FileSys.A_READ]) then
       Posix.FileSys.symlink { old = OS.Path.concat(OS.Path.parentArc,f),
                               new = OS.Path.concat("tools-poly",includes_file) }
-      before diag ["linking to custom ",includes_file]
+      before diag ["Linking to custom ",includes_file]
     else ()
   end
 
@@ -199,7 +199,7 @@ fun prepare_hol sha =
                 OS.FileSys.access("bin/build",[OS.FileSys.A_EXEC])
     val () =
       if reuse
-      then diag ["re-using HOL working directory built at same commit"]
+      then diag ["Reusing HOL working directory built at same commit"]
       else (system_output (git_reset sha);
             system_output git_clean;
             link_poly_includes ())
