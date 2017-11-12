@@ -306,16 +306,17 @@ structure GitHub = struct
     "--data",data,
     String.concat[rest_endpoint,endpoint]])
 
-  val pending_status = ("pending","regression test in progress")
-  val success_status = ("success","regression test succeeded")
-  val failure_status = ("failure","regression test failed")
-  val unknown_status = ("error","regression test aborted")
-  fun set_status id sha sd =
+  fun status Pending = ("pending","regression test in progress")
+    | status Success = ("success","regression test succeeded")
+    | status Failure = ("failure","regression test failed")
+    | status Errored = ("error","regression test aborted")
+
+  fun set_status id sha st =
     let
       val cmd =
         rest_curl_cmd
           (cakeml_status_endpoint sha)
-          (status_json id sd)
+          (status_json id (status st))
       val response = system_output cgi_die cmd
     in
       cgi_assert
@@ -323,18 +324,6 @@ structure GitHub = struct
         ["Error setting GitHub commit status\n",response]
     end
 end
-
-fun read_status inp =
-  let
-    fun loop () =
-      case TextIO.inputLine inp of NONE => GitHub.unknown_status
-      | SOME line =>
-        if String.isSubstring "FAILED" line
-          then GitHub.failure_status
-        else if String.isSubstring "SUCCESS" line
-          then GitHub.success_status
-        else loop ()
-  in loop () end
 
 val cakeml_query = String.concat [
   "{repository(name: \\\"cakeml\\\", owner: \\\"CakeML\\\"){",
@@ -556,7 +545,10 @@ structure HTML = struct
   val pre = elt "pre"
   fun time d = element "time" [("datetime",machine_date d)] [pretty_date d]
   fun a href body = element "a" [("href",href)] [body]
-  val span = elt "span"
+  fun span attrs strs = element "span" attrs strs
+  fun status_attrs Success = [("class","success")]
+    | status_attrs Failure = [("class","failure")]
+    | status_attrs _ = []
   val li = elt "li"
   fun ul ls = element "ul" [] (List.map li ls)
 end
@@ -575,10 +567,11 @@ in
       val typ = read_job_type inp
                 handle IO.Io _ => cgi_die ["cannot open ",f]
                      | Option => cgi_die [f," has invalid file format"]
+      val attrs = if q = "stopped" then status_attrs (read_status inp) else []
       val () = TextIO.closeIn inp
     in
       String.concat[a (String.concat["job/",jid]) jid, " ",
-                    span (String.concat ["(", typ, ")"])]
+                    span attrs ["(", typ, ")"]]
     end
 
   fun html_job_list (q,ids) =

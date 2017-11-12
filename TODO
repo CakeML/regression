@@ -1,6 +1,4 @@
-TODO: Show more information on overview page
-  - Colour stopped jobs by success/failure
-  - Show time of last output (or time since last update) for running jobs?
+TODO: Show time of last output (or time since last update) for running jobs?
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.

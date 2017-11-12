@@ -76,7 +76,7 @@ fun claim id name =
               handle Option => cgi_die ["job ",f," has invalid file format"]
     val () = TextIO.closeIn inp
   in
-    GitHub.set_status f sha GitHub.pending_status
+    GitHub.set_status f sha Pending
   end
 
 fun append id line =
@@ -114,7 +114,7 @@ fun stop id =
     val () = TextIO.closeIn inp
     val () = GitHub.set_status f sha status
   in
-    send_email (String.concat["Job ",f,": ",#2 status])
+    send_email (String.concat["Job ",f,": ",#2 (GitHub.status status)])
                (String.concat["See ",server,"/job/",f,"\n"])
   end
 

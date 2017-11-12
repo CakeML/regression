@@ -189,4 +189,18 @@ fun read_job_type inp =
     else "master"
   end
 
+datatype status = Pending | Success | Failure | Errored
+
+fun read_status inp =
+  let
+    fun loop () =
+      case TextIO.inputLine inp of NONE => Errored
+      | SOME line =>
+        if String.isSubstring "FAILED" line
+          then Failure
+        else if String.isSubstring "SUCCESS" line
+          then Success
+        else loop ()
+  in loop () end
+
 end
