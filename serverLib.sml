@@ -263,7 +263,7 @@ fun add_waiting avoid_ids (snapshot,id) =
 
 local
   val to_address = "builds@cakeml.org"
-  val email_file = "email"
+  val email_file = "email.txt"
 in
   fun send_email subject body =
     let
