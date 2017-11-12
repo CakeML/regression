@@ -5,6 +5,10 @@ TODO: Add http (or other) authentication for using the API
   This could also be used to tell out-of-date worker programs that they need to
   be updated (because their auth token won't work any more)
 
+TODO: Show more information on directories in progress
+  - Could display the time spent so far (i.e., now - start time)
+  - Could display the average time spent on this directory in other running/stopped jobs
+
 TODO: Consider using AJAX or whatever to refresh the html interface dynamically?
 
 TODO: Replace calls to the OS shell with SML Basis functionality
