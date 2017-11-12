@@ -1,6 +1,11 @@
+TODO: Show more information on overview page
+  - Colour stopped jobs by success/failure
+  - Show time of last output (or time since last update) for running jobs?
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
+
+TODO: Consider using AJAX or whatever to refresh the html interface dynamically?
 
 TODO: Replace calls to the OS shell with SML Basis functionality
   In worker.sml there is a call to OS.Process.system that passes quite a lot of
