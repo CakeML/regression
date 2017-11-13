@@ -544,17 +544,18 @@ structure HTML = struct
   val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href",style_href)]
   val momentjs = element "script" [("src","https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.19.1/moment.min.js")] []
   val localisejs = element "script" [] [
-    "function localiseTimes() {",
-    "var ls = document.getElementsByTagName(\"time\");",
+    "function localiseTimes(all) {",
+    "var ls = document.getElementsByTagName('time');",
     "for (var i = 0; i < ls.length; i++) {",
-    "if (ls[i].getAttribute(\"class\") == \"ago\") {",
-    "ls[i].innerHTML = \" [\" + moment(ls[i].getAttribute(\"datetime\")).fromNow() + \"]\";} else {",
-    "ls[i].innerHTML = moment(ls[i].getAttribute(\"datetime\")).format(\"",
-    pretty_date_moment,"\");}}}"]
+    "if (ls[i].getAttribute('class') == 'ago') {",
+    "ls[i].innerHTML = ' [' + moment(ls[i].getAttribute('datetime')).fromNow() + ']';}",
+    "else if (all) {",
+    "ls[i].innerHTML = moment(ls[i].getAttribute('datetime')).format('",
+    pretty_date_moment,"');}}}"]
   val title = elt "title" "CakeML Regression Test"
   val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
   val header = head [meta,stylesheet,title,shortcut,momentjs,localisejs]
-  val body = element "body" [("onload","localiseTimes()")]
+  val body = element "body" [("onload","localiseTimes(true); setInterval(localiseTimes,60000,false);")]
   val h2 = elt "h2"
   val h3 = elt "h3"
   val strong = elt "strong"
