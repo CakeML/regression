@@ -529,6 +529,8 @@ fun read_last_date inp =
 
 val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
 
+val style_href = "/regression-style.css"
+
 structure HTML = struct
   val attributes = List.map (fn (k,v) => String.concat[k,"='",v,"'"])
   fun start_tag tag [] = String.concat["<",tag,">"]
@@ -539,7 +541,7 @@ structure HTML = struct
   val html = element "html" [("lang","en")]
   val head = element "head" []
   val meta = start_tag "meta" [("charset","utf-8")]
-  val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href","/regression-style.css")]
+  val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href",style_href)]
   val momentjs = element "script" [("src","https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.19.1/moment.min.js")] []
   val localisejs = element "script" [] [
     "function localiseTimes() {",
@@ -566,6 +568,7 @@ structure HTML = struct
     | status_attrs _ = []
   val li = elt "li"
   fun ul ls = element "ul" [] (List.map li ls)
+  val footer = element "footer" []
 end
 
 datatype html_request = Overview | DisplayJob of id
@@ -745,7 +748,11 @@ in
       (ListPair.map html_job_list
          (queue_dirs,
           List.map (fn f => f()) queue_funs))
-    @ [a (String.concat[base_url,"/api/refresh"]) "refresh from GitHub"]
+    @ [footer [a host "CakeML main page",
+               a (String.concat[base_url,"/api/refresh"]) "Refresh jobs from GitHub",
+               a "https://github.com/CakeML/regression" "Site code on GitHub",
+               a (String.concat["https://validator.w3.org/nu/?doc=",server]) "Valid HTML",
+               a (String.concat["https://jigsaw.w3.org/css-validator/validator?uri=",server,style_href]) "Valid CSS"]]
   | req_body (DisplayJob id) =
     let
       val jid = Int.toString id
