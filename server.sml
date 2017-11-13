@@ -6,7 +6,7 @@ It also provides a hook for refreshing the queues:
   If there are new jobs on GitHub, they will be added as waiting.
   If there are stale jobs, they will be removed.
 
-Each job is on exactly one list: waiting, running, stopped, errored.
+Each job is on exactly one list: waiting, running, stopped, aborted.
 If a job changes list, it can only move to the right.
 
 The waiting queue is refreshed as follows:
@@ -102,17 +102,17 @@ fun stop id =
                (String.concat["See ",server,"/job/",f,"\n"])
   end
 
-fun error id =
+fun abort id =
   let
     val f = Int.toString id
     val old = OS.Path.concat("stopped",f)
-    val new = OS.Path.concat("errored",f)
+    val new = OS.Path.concat("aborted",f)
   in
     if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
-        cgi_die ["job ",f, " is both stopped and errored"]
+        cgi_die ["job ",f, " is both stopped and aborted"]
       else OS.FileSys.rename{old = old, new = new}
-    else cgi_die ["job ",f," is not stopped: cannot error"]
+    else cgi_die ["job ",f," is not stopped: cannot abort"]
   end
 
 fun refresh () =
@@ -124,7 +124,7 @@ fun refresh () =
     val stopped_ids = stopped()
     val snapshots = filter_out (same_head "running") running_ids snapshots
     val snapshots = filter_out (same_snapshot "stopped") stopped_ids snapshots
-    val avoid_ids = running_ids @ stopped_ids @ errored()
+    val avoid_ids = running_ids @ stopped_ids @ aborted()
     val () = if List.null snapshots then ()
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
   in () end
@@ -174,7 +174,7 @@ in
       | Claim(id,name) => (claim id name; claim_response)
       | Append(id,line) => (append id line; append_response)
       | Stop id => (stop id; stop_response)
-      | Error id => (error id; error_response)
+      | Abort id => (abort id; abort_response)
     ) handle e => cgi_die [exnMessage e]
 end
 

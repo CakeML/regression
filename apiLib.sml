@@ -41,24 +41,24 @@ Reference:
     sends email with output
     fails if <id> is not currently running
 
-  error id:
-    mark job <id> as errored
-    returns "errored"
+  abort id:
+    mark job <id> as aborted
+    returns "aborted"
     fails if <id> is not currently stopped
 
   all failures return text starting with "Error:"
 
 Jobs move (right only) between these states:
 
-  waiting, running, stopped, errored
+  waiting, running, stopped, aborted
 
 waiting = ready to be run, waiting for a worker
 running = claimed to be running by a worker
 stopped = finished either with success or failure
-errored = the worker did not finish properly
+aborted = the worker did not finish properly
 
 When the waiting queue is refreshed, the commits of running or stopped jobs are
-not considered to need running again, whereas the commits of errored jobs are
+not considered to need running again, whereas the commits of aborted jobs are
 (as long as they are still the latest commits).
 
 *)
@@ -82,13 +82,13 @@ val server = String.concat[host,base_url]
 datatype api = Waiting | Refresh
              | Job of id | Claim of id * worker_name
              | Append of id * line (* not including newline *)
-             | Stop of id | Error of id
+             | Stop of id | Abort of id
 
 val refresh_response = "refreshed\n"
 val claim_response = "claimed\n"
 val append_response = "appended\n"
 val stop_response = "stopped\n"
-val error_response = "errored\n"
+val abort_response = "aborted\n"
 val log_response = "logged\n"
 
 fun percent_decode s =
@@ -119,7 +119,7 @@ fun api_to_string Waiting = "/waiting"
   | api_to_string (Claim (id,name)) = String.concat["/claim/",Int.toString id]
   | api_to_string (Append (id,line)) = String.concat["/append/",Int.toString id]
   | api_to_string (Stop id) = String.concat["/stop/",Int.toString id]
-  | api_to_string (Error id) = String.concat["/error/",Int.toString id]
+  | api_to_string (Abort id) = String.concat["/abort/",Int.toString id]
 
 fun api_curl_args (Append (_,line)) = ["--get","--data-urlencode",String.concat["line=",line]]
   | api_curl_args (Claim  (_,name)) = ["--get","--data-urlencode",String.concat["name=",name]]
@@ -150,7 +150,7 @@ fun api_from_string s q =
                               (Option.mapPartial (read_query "line") q))
                     (id_from_string n)
   | ["stop",n] => Option.map Stop (id_from_string n)
-  | ["error",n] => Option.map Error (id_from_string n)
+  | ["abort",n] => Option.map Abort (id_from_string n)
   | _ => NONE)
 
 type bare_pr = { head_sha : string, base_sha : string }
@@ -191,12 +191,12 @@ fun read_job_type inp =
     else "master"
   end
 
-datatype status = Pending | Success | Failure | Errored
+datatype status = Pending | Success | Failure | Aborted
 
 fun read_status inp =
   let
     fun loop () =
-      case TextIO.inputLine inp of NONE => Errored
+      case TextIO.inputLine inp of NONE => Aborted
       | SOME line =>
         if String.isSubstring "FAILED" line
           then Failure

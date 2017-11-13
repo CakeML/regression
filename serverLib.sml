@@ -10,7 +10,7 @@
   to ensure this.
 
   Job lists are implemented as directories:
-    waiting, running, stopped, errored
+    waiting, running, stopped, aborted
 
   Jobs are implemented as files with their id as filename.
 
@@ -151,7 +151,7 @@ fun print_job out (j:job) =
     val () = List.app (print_log_entry out) (#output j)
   in () end
 
-val queue_dirs = ["waiting","running","stopped","errored"]
+val queue_dirs = ["waiting","running","stopped","aborted"]
 
 local
   open OS.FileSys
@@ -202,9 +202,9 @@ end
 val waiting = List.rev o read_list "waiting"
 val running = read_list "running"
 val stopped = read_list "stopped"
-val errored = read_list "errored"
+val aborted = read_list "aborted"
 
-val queue_funs = [waiting,running,stopped,errored]
+val queue_funs = [waiting,running,stopped,aborted]
 
 fun queue_of_job f =
   let
@@ -309,7 +309,7 @@ structure GitHub = struct
   fun status Pending = ("pending","regression test in progress")
     | status Success = ("success","regression test succeeded")
     | status Failure = ("failure","regression test failed")
-    | status Errored = ("error","regression test aborted")
+    | status Aborted = ("error","regression test aborted")
 
   fun set_status id sha st =
     let
