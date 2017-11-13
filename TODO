@@ -3,13 +3,17 @@ TODO: Add interface to stop jobs. Rethink job categorisation.
   If so, how would workers know to do so? Polling?
   Currently the interface, if you control a worker, is:
     CTRL-C to stop building, then manually hit the /api/stop/n URL to move it
-    to Stopped, then if desired call the worker with --error to move it to
-    Errored.
+    to Stopped, then if desired call the worker with --abort to move it to
+    Aborted.
   Should the worker have a --stop command? Or --fail/--succeed?
 
 TODO: Show date/time of commits in fromNow() format
   This would require putting the full ISO date there first,
   and wrapping in a time element in the HTML interface
+
+TODO: Use SSE to refresh the html interface dynamically
+
+TODO: Make the refresh API redirect back to the overview page
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
@@ -21,8 +25,6 @@ TODO: Add http (or other) authentication for using the API
 TODO: Show more information on directories in progress
   - Could display the time spent so far (i.e., now - start time)
   - Could display the average time spent on this directory in other running/stopped jobs
-
-TODO: Consider using AJAX or whatever to refresh the html interface dynamically?
 
 TODO: Replace calls to the OS shell with SML Basis functionality
   In worker.sml there is a call to OS.Process.system that passes quite a lot of
