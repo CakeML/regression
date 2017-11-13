@@ -552,9 +552,14 @@ structure HTML = struct
     "else if (all) {",
     "ls[i].innerHTML = moment(ls[i].getAttribute('datetime')).format('",
     pretty_date_moment,"');}}}"]
+  val updatejs = element "script" [] [
+    "var upds = new EventSource('/regression-updates.cgi');",
+    "upds.onmessage = function(e) { if (location.pathname.includes('/job/' + e.data) ||",
+                                       "!(location.pathname.includes('/job/')))",
+                                    "location.reload(); };" ]
   val title = elt "title" "CakeML Regression Test"
   val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
-  val header = head [meta,stylesheet,title,shortcut,momentjs,localisejs]
+  val header = head [meta,stylesheet,title,shortcut,momentjs,localisejs,updatejs]
   val body = element "body" [("onload","localiseTimes(true); setInterval(localiseTimes,60000,false);")]
   val h2 = elt "h2"
   val h3 = elt "h3"

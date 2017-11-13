@@ -7,8 +7,6 @@ TODO: Add interface to stop jobs. Rethink job categorisation.
     Aborted.
   Should the worker have a --stop command? Or --fail/--succeed?
 
-TODO: Use SSE to refresh the html interface dynamically
-
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
 
