@@ -7,10 +7,6 @@ TODO: Add interface to stop jobs. Rethink job categorisation.
     Aborted.
   Should the worker have a --stop command? Or --fail/--succeed?
 
-TODO: Show date/time of commits in fromNow() format
-  This would require putting the full ISO date there first,
-  and wrapping in a time element in the HTML interface
-
 TODO: Use SSE to refresh the html interface dynamically
 
 TODO: Make the refresh API redirect back to the overview page

@@ -22,12 +22,12 @@
     - output
   More concretely:
     CakeML: <SHA>
-      <short message> (<date>)
+      <short message> [<date>]
     [#<PR> (<PR-name>)
      Merging into: <SHA>
-      <short message> (<date>)]
+      <short message> [<date>]]
     HOL: <SHA>
-      <short message> (<date>)
+      <short message> [<date>]
     [Machine: <worker name>]
 
     [<date> Claimed job]
@@ -129,7 +129,7 @@ fun print_snapshot out (s:snapshot) =
     fun pr s = TextIO.output(out,s)
     val prl = List.app pr
     fun print_obj obj =
-      prl [#hash obj, "\n  ", #message obj, " (", Date.fmt "%d/%m/%y" (#date obj), ")\n"]
+      prl [#hash obj, "\n  ", #message obj, " [", machine_date (#date obj), "]\n"]
 
     val () = pr "CakeML: "
     val () =
@@ -659,6 +659,17 @@ in
           i3s K "Kb"]
     end handle Subscript => raise Option
 
+  fun process_message s =
+    let
+      val ss = Substring.full s
+      val (msg_br,date_nl) = Substring.splitr (not o equal #"[") ss
+      val (date,rest) = ReadJSON.bare_read_date date_nl
+      val msg = Substring.trimr 2 msg_br
+    in
+      (* reversed *)
+      ["\n", time_ago date, escape (Substring.string msg)]
+    end handle Option => [escape s]
+
   fun process s =
     let
       val inp = TextIO.openString s
@@ -666,7 +677,7 @@ in
       val prefix = "CakeML: "
       val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
       val acc = [String.concat[strong prefix,cakeml_commit_link sha,"\n"]]
-      val acc = escape (read_line ()) :: acc (* msg *)
+      val acc = process_message (read_line ()) @ acc
       val line = read_line ()
       val (line,acc) =
         if String.isPrefix "#" line then
@@ -678,13 +689,13 @@ in
             val prefix = "Merging into: "
             val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
             val acc = (String.concat[strong prefix,cakeml_commit_link sha,"\n"])::acc
-            val acc = escape (read_line ()) :: acc
+            val acc = process_message (read_line ()) @ acc
           in (read_line (), acc) end
         else (line,acc)
       val prefix = "HOL: "
       val sha = extract_prefix_trimr prefix line handle Option => cgi_die ["failed to find line ",prefix]
       val acc = (String.concat[strong prefix,hol_commit_link sha,"\n"])::acc
-      val acc = escape (read_line ()) :: acc (* msg *)
+      val acc = process_message (read_line ()) @ acc
       exception Return of string list
       val acc =
         let
