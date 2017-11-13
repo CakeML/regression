@@ -269,7 +269,7 @@ in
     let
       val () = output_to_file (email_file,body)
       val mail_cmd = ("/usr/bin/mail",
-        ["-s",subject,"-m",email_file,"-.",to_address])
+        ["-s",subject,"-r",to_address,"-m",email_file,"-.",to_address])
     in
       system_output cgi_die mail_cmd
     end
