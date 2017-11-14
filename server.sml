@@ -173,19 +173,16 @@ fun get_api () =
 local
   fun id_list ids = String.concatWith " " (List.map Int.toString ids)
 in
-  fun dispatch Refresh =
-    ((refresh (); TextIO.output(TextIO.stdOut,String.concat["Location:",base_url,"\n\n"]))
-     handle e => cgi_die [exnMessage e])
-  | dispatch api =
+  fun dispatch api =
     text_response (
       case api of
         Waiting => id_list (waiting())
+      | Refresh => (refresh (); refresh_response)
       | Job id => file_to_string (job id)
       | Claim(id,name) => (claim id name; claim_response)
       | Append(id,line) => (append id line; append_response)
       | Stop id => (stop id; stop_response)
       | Abort id => (abort id; abort_response)
-      | Refresh => raise(Fail"impossible")
     ) handle e => cgi_die [exnMessage e]
 end
 

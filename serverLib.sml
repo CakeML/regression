@@ -755,7 +755,6 @@ in
          (queue_dirs,
           List.map (fn f => f()) queue_funs))
     @ [footer [a host "CakeML main page",
-               a (String.concat[base_url,"/api/refresh"]) "Refresh jobs from GitHub",
                a "https://github.com/CakeML/regression" "Site code on GitHub",
                a (String.concat["https://validator.w3.org/nu/?doc=",server]) "Valid HTML",
                a (String.concat["https://jigsaw.w3.org/css-validator/validator?uri=",server,style_href]) "Valid CSS"]]

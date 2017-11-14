@@ -85,6 +85,7 @@ datatype api = Waiting | Refresh
              | Append of id * line (* not including newline *)
              | Stop of id | Abort of id
 
+val refresh_response = "refreshed\n"
 val claim_response = "claimed\n"
 val append_response = "appended\n"
 val stop_response = "stopped\n"

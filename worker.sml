@@ -31,7 +31,8 @@ fun usage_string name = String.concat[
   "                attempt to start running it again. If the job fails again,\n",
   "                exit (even without --no-loop).\n",
   "  --abort id  : Mark job <id> as having aborted, i.e., stopped without a proper\n",
-  "                success or failure, then exit.\n"];
+  "                success or failure, then exit.\n",
+  "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
 
 (*
 
@@ -375,6 +376,9 @@ fun main () =
     val args = CommandLine.arguments()
     val () = if List.exists (fn a => a="--help" orelse a="-h" orelse a="-?") args
              then (TextIO.output(TextIO.stdOut, usage_string(CommandLine.name())); OS.Process.exit OS.Process.success)
+             else ()
+    val () = if List.exists (equal "--refresh") args
+             then (TextIO.output(TextIO.stdOut, API.send Refresh); OS.Process.exit OS.Process.success)
              else ()
     val () = case get_int_arg "--abort" args of NONE => ()
              | SOME id => (
