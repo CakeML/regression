@@ -662,10 +662,10 @@ in
           String.concat ["      ", i2s ss, "s"],
         " ",
         if G > 0 then
-          i3s G "Gb"
+          i3s G "GB"
         else if M > 0 then
-          i3s M "Mb" else
-          i3s K "Kb"]
+          i3s M "MB" else
+          i3s K "kB"]
     end handle Subscript => raise Option
 
   fun process_message s =
