@@ -258,7 +258,7 @@ local
       val n = if z < max_dir_length then max_dir_length - z
               else (warn ["max_dir_length is too small for ",dir]; 1)
     in CharVector.tabulate(n,(fn _ => #" ")) end
-  fun no_skip _ = false
+  val no_skip = ((fn _ => false), "Starting ")
 in
   fun run_regression resumed id =
     let
@@ -275,20 +275,21 @@ in
       val () = assert (OS.FileSys.getDir() = cakemldir) ["impossible failure"]
       val seq = TextIO.openIn("developers/build-sequence")
                 handle e as OS.SysErr _ => die ["Failed to open build-sequence: ",exnMessage e]
-      val can_skip =
-        (if resumed then (not o equal (file_to_string resume_file)) else no_skip)
+      val skip =
+        (if resumed then (not o equal (file_to_string resume_file), "Resuming ")
+                    else no_skip)
         handle (e as IO.Io _) => die["Failed to load resume file: ",exnMessage e]
-      fun loop can_skip =
+      fun loop skip =
         case TextIO.inputLine seq of NONE => true
         | SOME line =>
           if String.isPrefix "#" line orelse
              String.isPrefix "\n" line orelse
-             can_skip line
-          then loop can_skip else
+             #1 skip line
+          then loop skip else
           let
             val () = output_to_file (resume_file, line)
             val dir = until_space line
-            val () = API.append id (String.concat["Starting ",dir])
+            val () = API.append id (String.concat[#2 skip,dir])
             val entered = (OS.FileSys.chDir dir; true)
                           handle e as OS.SysErr _ => (API.append id (exnMessage e); false)
           in
@@ -303,7 +304,7 @@ in
                API.stop id;
                false)
           end
-      val success = loop can_skip
+      val success = loop skip
       val () =
         if success then
           (API.append id "SUCCESS"; API.stop id)
