@@ -119,16 +119,16 @@ val poll_delay = Time.fromSeconds(60 * 30)
 
 structure API = struct
   val endpoint = String.concat[server,"/api"]
+  val std_options = ["--silent","--show-error","--header",String.concat["Authorization: Bearer ",cakeml_token]]
   fun curl_cmd api = (curl_path,
-    ["--silent","--show-error",
-     "--header",String.concat["Authorization: Bearer ",cakeml_token]]
+      std_options
     @ api_curl_args api
     @ [String.concat[endpoint,api_to_string api]])
   val send = system_output o curl_cmd
-  fun curl_log id file =
-    (curl_path,["--silent","--show-error","--request","POST",
-                "--data-binary",String.concat["@",file],
-                String.concat[endpoint,"/log/",Int.toString id]])
+  fun curl_log id file = (curl_path,
+      std_options
+      @ ["--request","POST","--data-binary",String.concat["@",file],
+         String.concat[endpoint,"/log/",Int.toString id]])
   fun append id line =
     let val response = send (Append(id,line))
     in assert (response=append_response) ["Unexpected append response: ",response] end
