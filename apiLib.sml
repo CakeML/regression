@@ -78,6 +78,7 @@ fun check_id f id =
 val host = "https://cakeml.org"
 val base_url = "/regression.cgi"
 val server = String.concat[host,base_url]
+val cakeml_token = until_space (file_to_string "cakeml-token")
 
 datatype api = Waiting | Refresh
              | Job of id | Claim of id * worker_name

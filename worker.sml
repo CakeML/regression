@@ -119,7 +119,10 @@ val poll_delay = Time.fromSeconds(60 * 30)
 structure API = struct
   val endpoint = String.concat[server,"/api"]
   fun curl_cmd api = (curl_path,
-    ["--silent","--show-error"] @ api_curl_args api @ [String.concat[endpoint,api_to_string api]])
+    ["--silent","--show-error",
+     "--header",String.concat["Authorization: Bearer ",cakeml_token]]
+    @ api_curl_args api
+    @ [String.concat[endpoint,api_to_string api]])
   val send = system_output o curl_cmd
   fun curl_log id file =
     (curl_path,["--silent","--show-error","--request","POST",

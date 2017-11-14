@@ -134,32 +134,40 @@ datatype request =
   | Post of id * string
   | Html of html_request
 
+fun check_auth auth =
+  if auth = SOME (String.concat["Bearer ",cakeml_token]) then ()
+  else cgi_die ["Unauthorized: ", Option.valOf auth handle Option => "got nothing"]
+
 fun get_api () =
   case (OS.Process.getEnv "PATH_INFO",
-        OS.Process.getEnv "REQUEST_METHOD") of
-    (SOME path_info, SOME "GET")
-      =>
-        if String.isPrefix "/api" path_info then
+        OS.Process.getEnv "REQUEST_METHOD",
+        OS.Process.getEnv "HTTP_AUTHORIZATION") of
+    (SOME path_info, SOME "GET", auth) =>
+      if String.isPrefix "/api" path_info then
+        let val () = check_auth auth in
           Option.map Get
             (api_from_string
               (String.extract(path_info,4,NONE))
               (OS.Process.getEnv "QUERY_STRING"))
-        else
-          (case String.tokens (equal #"/") path_info of
-            ["job",n] => Option.map (Html o DisplayJob) (id_from_string n)
-          | _ => SOME (Html Overview))
-  | (NONE, SOME "GET") => SOME (Html Overview)
-  | (SOME path_info, SOME "POST")
-      => (case String.tokens (equal #"/") path_info of
-            ["api","log",n] =>
-              (Option.mapPartial
-                (fn len =>
-                  Option.compose
-                    ((fn id => Post(id,TextIO.inputN(TextIO.stdIn,len))),
-                     id_from_string) n)
-                (Option.composePartial(Int.fromString,OS.Process.getEnv) "CONTENT_LENGTH"))
-          | ["api","refresh"] => SOME (Get Refresh) (* GitHub webhook requests this with POST *)
-          | _ => NONE)
+        end
+      else
+        (case String.tokens (equal #"/") path_info of
+          ["job",n] => Option.map (Html o DisplayJob) (id_from_string n)
+        | _ => SOME (Html Overview))
+  | (NONE, SOME "GET", _) => SOME (Html Overview)
+  | (SOME path_info, SOME "POST", auth) =>
+      let val () = check_auth auth in
+        case String.tokens (equal #"/") path_info of
+          ["api","log",n] =>
+            (Option.mapPartial
+              (fn len =>
+                Option.compose
+                  ((fn id => Post(id,TextIO.inputN(TextIO.stdIn,len))),
+                   id_from_string) n)
+              (Option.composePartial(Int.fromString,OS.Process.getEnv) "CONTENT_LENGTH"))
+        | ["api","refresh"] => SOME (Get Refresh) (* GitHub webhook requests this with POST *)
+        | _ => NONE
+      end
   | _ => NONE
 
 local

@@ -12,10 +12,6 @@ TODO: Make server stop jobs that have been running too long
 
 TODO: Have worker upload bootstrapped compiler when a regression gets that far
 
-TODO: Add http (or other) authentication for using the API
-  This could also be used to tell out-of-date worker programs that they need to
-  be updated (because their auth token won't work any more)
-
 TODO: Show more information on directories in progress
   - Could display the time spent so far (i.e., now - start time)
   - Could display the average time spent on this directory in other running/stopped jobs
