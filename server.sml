@@ -156,17 +156,24 @@ fun get_api () =
         | _ => SOME (Html Overview))
   | (NONE, SOME "GET", _) => SOME (Html Overview)
   | (SOME path_info, SOME "POST", auth) =>
-      let val () = check_auth auth in
-        case String.tokens (equal #"/") path_info of
-          ["api","log",n] =>
-            (Option.mapPartial
-              (fn len =>
-                Option.compose
-                  ((fn id => Post(id,TextIO.inputN(TextIO.stdIn,len))),
-                   id_from_string) n)
-              (Option.composePartial(Int.fromString,OS.Process.getEnv) "CONTENT_LENGTH"))
-        | ["api","refresh"] => SOME (Get Refresh) (* GitHub webhook requests this with POST *)
-        | _ => NONE
+      let in
+      case String.tokens (equal #"/") path_info of
+        ["api","log",n] =>
+          let val () = check_auth auth in
+            Option.mapPartial
+             (fn len =>
+               Option.compose
+                 ((fn id => Post(id,TextIO.inputN(TextIO.stdIn,len))),
+                  id_from_string) n)
+             (Option.composePartial(Int.fromString,OS.Process.getEnv) "CONTENT_LENGTH")
+          end
+      | ["api","refresh"] =>
+          if Option.map
+               (String.isPrefix "GitHub-Hookshot/")
+               (OS.Process.getEnv "HTTP_USER_AGENT") = SOME true
+          then SOME (Get Refresh)
+          else cgi_die ["Bad request type: wanted GET got POST."]
+      | _ => NONE
       end
   | _ => NONE
 
