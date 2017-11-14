@@ -276,10 +276,10 @@ in
 end
 
 structure GitHub = struct
-  val token = until_space (file_to_string "token")
+  val token = until_space (file_to_string "github-token")
   val graphql_endpoint = "https://api.github.com/graphql"
   fun graphql_curl_cmd query = (curl_path,["--silent","--show-error",
-    "--header",String.concat["Authorization: bearer ",token],
+    "--header",String.concat["Authorization: Bearer ",token],
     "--request","POST",
     "--data",String.concat["{\"query\" : \"",query,"\"}"],
     graphql_endpoint])
@@ -298,7 +298,7 @@ structure GitHub = struct
   val rest_endpoint = "https://api.github.com"
   val rest_version = "application/vnd.github.v3+json"
   fun rest_curl_cmd endpoint data = (curl_path,["--silent","--show-error",
-    "--header",String.concat["Authorization: bearer ",token],
+    "--header",String.concat["Authorization: Bearer ",token],
     "--header",String.concat["Accept: ",rest_version],
     "--write-out", "%{http_code}",
     "--output", "/dev/null",
