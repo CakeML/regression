@@ -79,6 +79,9 @@ val host = "https://cakeml.org"
 val base_url = "/regression.cgi"
 val server = String.concat[host,base_url]
 val cakeml_token = until_space (file_to_string "cakeml-token")
+                   handle IO.Io _ => (
+                     TextIO.output(TextIO.stdErr,"Could not find cakeml-token. Try sha1sum worker.sml > cakeml-token.\n");
+                     OS.Process.exit OS.Process.failure)
 
 datatype api = Waiting | Refresh
              | Job of id | Claim of id * worker_name
