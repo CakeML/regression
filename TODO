@@ -1,3 +1,12 @@
+TODO: Have worker upload bootstrapped compiler when a regression gets that far
+
+TODO: Make workers use regression-updates.cgi SSEs rather than polling
+  The workers can use this (via curl) just as well as html clients.
+
+TODO: Show more information on directories in progress
+  - Could display the time spent so far (i.e., now - start time)
+  - Could display the average time spent on this directory in other running/stopped jobs
+
 TODO: Add interface to stop jobs. Rethink job categorisation.
   Should the job page have a link for cancelling that job?
   If so, how would workers know to do so? Polling?
@@ -9,12 +18,6 @@ TODO: Add interface to stop jobs. Rethink job categorisation.
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
-
-TODO: Have worker upload bootstrapped compiler when a regression gets that far
-
-TODO: Show more information on directories in progress
-  - Could display the time spent so far (i.e., now - start time)
-  - Could display the average time spent on this directory in other running/stopped jobs
 
 TODO: Replace calls to the OS shell with SML Basis functionality
   In worker.sml there is a call to OS.Process.system that passes quite a lot of
