@@ -75,4 +75,18 @@ structure utilLib = struct
       end
   end
 
+  local
+    val chunk_size = 65536
+  in
+    fun outputN_from_stdIn (out,len) =
+      let
+        fun loop len =
+          if chunk_size < len then
+            (TextIO.output(out,TextIO.inputN(TextIO.stdIn,chunk_size));
+             loop (len - chunk_size))
+          else
+            TextIO.output(out,TextIO.inputN(TextIO.stdIn,len))
+      in loop len end
+  end
+
 end

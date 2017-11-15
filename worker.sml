@@ -234,7 +234,7 @@ in
       val () = OS.FileSys.chDir OS.Path.parentArc
       val () = if built then () else
                (API.post (Append (id, "FAILED: building HOL"));
-                API.post (Log(id,capture_file));
+                API.post (Log(id,capture_file,0));
                 API.post (Stop id))
     in
       built
@@ -293,7 +293,7 @@ in
                loop no_skip)
             else
               (API.post (Append(id,String.concat["FAILED: ",dir]));
-               API.post (Log(id,capture_file));
+               API.post (Log(id,capture_file,0));
                API.post (Stop id);
                false)
           end

@@ -163,12 +163,13 @@ fun print_job out (j:job) =
     val () = List.app (print_log_entry out) (#output j)
   in () end
 
+val artefacts_dir = "artefacts"
 val queue_dirs = ["waiting","running","stopped","aborted"]
 
 local
   open OS.FileSys
 in
-  fun ensure_queue_dirs () =
+  fun ensure_dirs () =
     let
       val dir = openDir(getDir())
       fun loop ls =
@@ -176,7 +177,7 @@ in
       | SOME d => if isDir d then loop (List.filter(not o equal d) ls)
                   else if List.exists (equal d) ls then cgi_die 500 [d," exists and is not a directory"]
                   else loop ls
-      val dirs = loop queue_dirs
+      val dirs = loop (artefacts_dir::queue_dirs)
       val () = if List.null dirs then () else
                let val fd = acquire_lock () in
                  List.app mkDir dirs;

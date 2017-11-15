@@ -77,7 +77,7 @@ fun append (id,line) =
     Posix.IO.close fd
   end
 
-fun log (id,data) =
+fun log (id,_,len) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
@@ -85,9 +85,24 @@ fun log (id,data) =
     val out = TextIO.openAppend p
               handle e as IO.Io _ => (cgi_die 409 ["job ",f," is not running: cannot log"]; raise e)
   in
-    TextIO.output(out,data);
+    outputN_from_stdIn(out, len);
     TextIO.closeOut out;
     Posix.IO.close fd
+  end
+
+fun upload (id,name,len) =
+  let
+    val jid = Int.toString id
+    val dir = OS.Path.concat(artefacts_dir,jid)
+    val () = if OS.FileSys.access(dir,[]) then () else OS.FileSys.mkDir dir
+    val () = cgi_assert (OS.FileSys.isDir dir) 500 [dir," exists and is not a directory"]
+    val f = OS.Path.concat(dir,name)
+    val () = cgi_assert (not(OS.FileSys.access(f,[]))) 409 ["artefact ",name," already exists for job ",jid]
+    val out = TextIO.openOut f
+  in
+    outputN_from_stdIn(out, len);
+    TextIO.closeOut out
+    (* TODO: update link on downloads page on CakeML main site? *)
   end
 
 fun stop id =
@@ -166,12 +181,11 @@ fun get_api () =
       val () = cgi_assert (String.isPrefix "/api" path_info) 400 [path_info," is not a known endpoint"]
       val () = check_auth (OS.Process.getEnv "HTTP_AUTHORIZATION")
                           (OS.Process.getEnv "HTTP_USER_AGENT")
-      val q = Option.map (fn len => TextIO.inputN(TextIO.stdIn,len))
-                (Option.mapPartial Int.fromString
-                  (OS.Process.getEnv "CONTENT_LENGTH"))
+      val len = Option.mapPartial Int.fromString
+                  (OS.Process.getEnv "CONTENT_LENGTH")
     in
       Option.map (Api o P)
-        (post_from_string (String.extract(path_info,4,NONE)) q)
+        (post_from_string (String.extract(path_info,4,NONE)) len)
     end
   | _ => NONE
 
@@ -192,6 +206,7 @@ in
         | (P (Claim x)) => claim x
         | (P (Append x)) => append x
         | (P (Log x)) => log x
+        | (P (Upload x)) => upload x
         | (P (Stop x)) => stop x
         | (P (Abort x)) => abort x
     in
@@ -208,7 +223,7 @@ fun dispatch_req req =
 
 fun main () =
   let
-    val () = ensure_queue_dirs ()
+    val () = ensure_dirs ()
   in
     case get_api () of
       NONE => cgi_die 400 ["bad usage"]
