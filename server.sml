@@ -175,10 +175,11 @@ fun get_api () =
         Option.map (Api o G) (get_from_string (String.extract(path_info,4,NONE)))
       else if String.isPrefix "/job/" path_info then
         Option.map (Html o DisplayJob) (id_from_string (String.extract(path_info,5,NONE)))
-      else cgi_die 404 []
+      else if path_info = "/" then SOME (Html Overview)
+      else cgi_die 404 [path_info," not found"]
   | (SOME path_info, SOME "POST") =>
     let
-      val () = cgi_assert (String.isPrefix "/api" path_info) 400 [path_info," is not a known endpoint"]
+      val () = cgi_assert (String.isPrefix "/api" path_info) 400 [path_info," not found"]
       val () = check_auth (OS.Process.getEnv "HTTP_AUTHORIZATION")
                           (OS.Process.getEnv "HTTP_USER_AGENT")
       val len = Option.mapPartial Int.fromString
