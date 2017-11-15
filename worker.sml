@@ -30,8 +30,8 @@ fun usage_string name = String.concat[
   "  --resume id : Assume job <id> has previously been claimed by this worker and\n",
   "                attempt to start running it again. If the job fails again,\n",
   "                exit (even without --no-loop).\n",
-  "  --upload id : Assume this worker has just finished job <id> and manually upload",
-  "                its build artefacts (usually automatic after running a job).\n",
+  "  --upload id : Assume this worker has just finished job <id> and manually upload\n",
+  "                its build artefacts (usually automatic after a job), then exit.\n",
   "  --abort id  : Mark job <id> as having aborted, i.e., stopped without a proper\n",
   "                success or failure, then exit.\n",
   "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
