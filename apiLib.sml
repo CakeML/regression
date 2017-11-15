@@ -148,7 +148,7 @@ fun api_to_string (G Waiting) = "/waiting"
 fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line=",line]]
   | post_curl_args (Claim  (_,name)) = ["--data-urlencode",String.concat["name=",name]]
   | post_curl_args (Log    (_,file,_)) = ["--data-binary",String.concat["@",file]]
-  | post_curl_args (Upload (_,file,_)) = ["--data",String.concat["name=",file],"--data-binary",String.concat["@",file]]
+  | post_curl_args (Upload (_,file,_)) = ["--data",String.concat["name=",List.last(#arcs(OS.Path.fromString file))],"--data-binary",String.concat["@",file]]
   | post_curl_args (Stop  _) = ["--data",""]
   | post_curl_args (Abort _) = ["--data",""]
   | post_curl_args (Refresh) = ["--data",""]

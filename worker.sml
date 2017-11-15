@@ -30,6 +30,8 @@ fun usage_string name = String.concat[
   "  --resume id : Assume job <id> has previously been claimed by this worker and\n",
   "                attempt to start running it again. If the job fails again,\n",
   "                exit (even without --no-loop).\n",
+  "  --upload id : Assume this worker has just finished job <id> and manually upload",
+  "                its build artefacts (usually automatic after running a job).\n",
   "  --abort id  : Mark job <id> as having aborted, i.e., stopped without a proper\n",
   "                success or failure, then exit.\n",
   "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
@@ -140,6 +142,11 @@ val HOLDIR = "HOL"
 val hol_remote = "https://github.com/HOL-Theorem-Prover/HOL.git"
 val CAKEMLDIR = "cakeml"
 val cakeml_remote = "https://github.com/CakeML/cakeml.git"
+
+val artefact_paths = [
+  "compiler/bootstrap/compilation/x64/cake-x64.tar.gz",
+  "compiler/bootstrap/compilation/riscv/cake-riscv.tar.gz" ]
+
 val git_path = "/usr/bin/git"
 val git_clean = (git_path,["clean","-d","--force","-x"])
 fun git_reset sha = (git_path,["reset","--hard","--quiet",sha])
@@ -241,6 +248,15 @@ in
     end
 end
 
+fun upload id f =
+  let
+    val p = OS.Path.concat(CAKEMLDIR,f)
+  in
+    if OS.FileSys.access(p,[])
+    then API.post (Upload(id,p,0))
+    else warn ["Could not find ",p," to upload."]
+  end
+
 local
   val resume_file = "resume"
   val time_options = String.concat["--format='%e %M' --output='",timing_file,"'"]
@@ -300,7 +316,11 @@ in
       val success = loop skip
       val () =
         if success then
-          (API.post (Append(id,"SUCCESS")); API.post (Stop id))
+          let in
+            API.post (Append(id,"SUCCESS"));
+            List.app (upload id) artefact_paths;
+            API.post (Stop id)
+          end
         else ()
       val () = OS.FileSys.chDir root
     in
@@ -378,6 +398,12 @@ fun main () =
              | SOME id => (
                  diag ["Marking job ",Int.toString id," as aborted."];
                  API.post (Abort id); OS.Process.exit OS.Process.success)
+    val () = case get_int_arg "--upload" args of NONE => ()
+             | SOME id => let in
+                 diag ["Uploading artefacts for job ",Int.toString id,"."];
+                 List.app (upload id) artefact_paths;
+                 OS.Process.exit OS.Process.success
+               end
     val no_poll = List.exists (equal"--no-poll") args
     val no_loop = List.exists (equal"--no-loop") args
     val resume = get_int_arg "--resume" args
