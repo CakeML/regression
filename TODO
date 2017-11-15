@@ -1,6 +1,3 @@
-TODO: Make workers use regression-updates.cgi SSEs rather than polling
-  The workers can use this (via curl) just as well as html clients.
-
 TODO: Show more information on directories in progress
   - Could display the time spent so far (i.e., now - start time)
   - Could display the average time spent on this directory in other running/stopped jobs

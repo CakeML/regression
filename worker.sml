@@ -9,12 +9,6 @@
   to mean redirect both stdout and stderr to file when running
   cmd on args in an environment augmented with var set to val (if present),
   and >>file instead of >file appends to file instead of truncating it.
-
-  Can be run either as a daemon (default) that will keep looking for work by
-  polling or as a one-shot command (--no-poll) that will do nothing if no work
-  is currently available. This means polling or work notifications can be
-  handled externally if desired.
-
 *)
 
 use "apiLib.sml"; open apiLib
@@ -23,7 +17,7 @@ fun usage_string name = String.concat[
   name, " [options]\n\n",
   "Runs waiting jobs from ",server,"/\n\n",
   "Summary of options:\n",
-  "  --no-poll   : Exit when no waiting jobs are found rather than polling.\n",
+  "  --no-wait   : Exit when no waiting jobs are found rather than waiting for them.\n",
   "                Will still check for more waiting jobs after completing a job.\n",
   "  --no-loop   : Exit after finishing a job, do not check for more waiting jobs.\n",
   "  --select id : Ignore the waiting jobs list and instead attempt to claim job <id>.\n",
@@ -116,8 +110,6 @@ fun system_capture_with redirector cmd_args =
 
 val system_capture = system_capture_with " >"
 val system_capture_append = system_capture_with " >>"
-
-val poll_delay = Time.fromSeconds(60 * 30)
 
 structure API = struct
   val endpoint = String.concat[server,"/api"]
@@ -380,6 +372,22 @@ fun work resumed id =
     end
   end
 
+fun wait () =
+  let
+    val cmd = curl_path
+    val args = API.std_options @ [String.concat[host,"/regression-updates.cgi"]]
+    val proc = Unix.execute(cmd,args)
+               handle e as OS.SysErr _ => die[curl_path," failed to execute on",String.concatWith" "args,"\n",exnMessage e]
+    val inp = Unix.textInstreamOf proc
+    fun loop () =
+      case TextIO.inputLine inp of NONE => ()
+      | SOME line =>
+        if String.size line = 1 then ()
+        else loop ()
+    val () = loop ()
+    val () = Unix.kill(proc,Posix.Signal.int)
+  in Unix.reap proc end
+
 fun get_int_arg name [] = NONE
   | get_int_arg name [_] = NONE
   | get_int_arg name (x::y::xs) =
@@ -405,7 +413,7 @@ fun main () =
                  List.app (upload id) artefact_paths;
                  OS.Process.exit OS.Process.success
                end
-    val no_poll = List.exists (equal"--no-poll") args
+    val no_wait = List.exists (equal"--no-wait") args
     val no_loop = List.exists (equal"--no-loop") args
     val resume = get_int_arg "--resume" args
     val select = get_int_arg "--select" args
@@ -420,8 +428,8 @@ fun main () =
             (String.tokens Char.isSpace (API.get Waiting))
       in
         case waiting_ids of [] =>
-          if no_poll then diag ["No waiting jobs. Exiting."]
-          else (diag ["No waiting jobs. Will check again later."]; OS.Process.sleep poll_delay; loop NONE)
+          if no_wait then diag ["No waiting jobs. Exiting."]
+          else (diag ["No waiting jobs. Will wait for them."]; wait (); loop NONE)
         | (id::_) => (* could prioritise for ids that match our HOL dir *)
           let
             val jid = Int.toString id
