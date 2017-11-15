@@ -48,6 +48,7 @@ fun claim (id,name) =
     val f = Int.toString id
     val old = OS.Path.concat("waiting",f)
     val new = OS.Path.concat("running",f)
+    val fd = acquire_lock ()
     val () =
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
         cgi_die 500 ["job ",f, " is both waiting and running"]
@@ -58,8 +59,9 @@ fun claim (id,name) =
     val inp = TextIO.openIn new
     val sha = get_head_sha (read_bare_snapshot inp)
               handle Option => cgi_die 500 ["job ",f," has invalid file format"]
-    val () = TextIO.closeIn inp
   in
+    TextIO.closeIn inp;
+    Posix.IO.close fd;
     GitHub.set_status f sha Pending
   end
 
@@ -67,18 +69,25 @@ fun append (id,line) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
+    val fd = acquire_lock ()
     val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die 409 ["job ",f," is not running: cannot append"]; raise e)
   in
-    print_log_entry out (Date.fromTimeUniv(Time.now()),line) before TextIO.closeOut out
+    print_log_entry out (Date.fromTimeUniv(Time.now()),line);
+    TextIO.closeOut out;
+    Posix.IO.close fd
   end
 
 fun log (id,data) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
-    val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die 409 ["job ",f," is not running: cannot log"]; raise e)
+    val fd = acquire_lock ()
+    val out = TextIO.openAppend p
+              handle e as IO.Io _ => (cgi_die 409 ["job ",f," is not running: cannot log"]; raise e)
   in
-    TextIO.output(out,data) before TextIO.closeOut out
+    TextIO.output(out,data);
+    TextIO.closeOut out;
+    Posix.IO.close fd
   end
 
 fun stop id =
@@ -86,6 +95,7 @@ fun stop id =
     val f = Int.toString id
     val old = OS.Path.concat("running",f)
     val new = OS.Path.concat("stopped",f)
+    val fd = acquire_lock ()
     val () =
       if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
         if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
@@ -95,12 +105,13 @@ fun stop id =
     val inp = TextIO.openIn new
     val sha = get_head_sha (read_bare_snapshot inp)
     val status = read_status inp
-    val () = TextIO.closeIn inp
-    val () = GitHub.set_status f sha status
   in
-    ignore (
-      send_email (String.concat["Job ",f,": ",#2 (GitHub.status status)])
-                 (String.concat["See ",server,"/job/",f,"\n"]))
+    TextIO.closeIn inp;
+    Posix.IO.close fd;
+    GitHub.set_status f sha status;
+    send_email (String.concat["Job ",f,": ",#2 (GitHub.status status)])
+               (String.concat["See ",server,"/job/",f,"\n"]);
+    ()
   end
 
 fun abort id =
@@ -108,17 +119,19 @@ fun abort id =
     val f = Int.toString id
     val old = OS.Path.concat("stopped",f)
     val new = OS.Path.concat("aborted",f)
+    val fd = acquire_lock ()
   in
     if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
         cgi_die 500 ["job ",f, " is both stopped and aborted"]
-      else OS.FileSys.rename{old = old, new = new}
+      else (OS.FileSys.rename{old = old, new = new}; Posix.IO.close fd)
     else cgi_die 409 ["job ",f," is not stopped: cannot abort"]
   end
 
 fun refresh () =
   let
     val snapshots = get_current_snapshots ()
+    val fd = acquire_lock ()
     val () = clear_list "waiting"
     (* TODO: stop timed out jobs *)
     val running_ids = running()
@@ -128,7 +141,7 @@ fun refresh () =
     val avoid_ids = running_ids @ stopped_ids @ aborted()
     val () = if List.null snapshots then ()
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
-  in () end
+  in Posix.IO.close fd end
 
 datatype request = Api of api | Html of html_request
 
@@ -199,11 +212,5 @@ fun main () =
   in
     case get_api () of
       NONE => cgi_die 400 ["bad usage"]
-    | SOME req =>
-      let
-        val fd = acquire_lock ()
-      in
-        dispatch_req req before
-        Posix.IO.close fd
-      end
+    | SOME req => dispatch_req req
   end

@@ -176,8 +176,14 @@ in
       | SOME d => if isDir d then loop (List.filter(not o equal d) ls)
                   else if List.exists (equal d) ls then cgi_die 500 [d," exists and is not a directory"]
                   else loop ls
+      val dirs = loop queue_dirs
+      val () = if List.null dirs then () else
+               let val fd = acquire_lock () in
+                 List.app mkDir dirs;
+                 Posix.IO.close fd
+               end
     in
-      List.app mkDir (loop queue_dirs) before closeDir dir
+      closeDir dir
     end
 end
 
