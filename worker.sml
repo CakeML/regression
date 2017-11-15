@@ -30,8 +30,8 @@ fun usage_string name = String.concat[
   "  --resume id : Assume job <id> has previously been claimed by this worker and\n",
   "                attempt to start running it again. If the job fails again,\n",
   "                exit (even without --no-loop).\n",
-  "  --upload id : Assume this worker has just finished job <id> and manually upload\n",
-  "                its build artefacts (usually automatic after a job), then exit.\n",
+  "  --upload id : Assume this worker has just finished job <id> and upload its build\n",
+  "                artefacts (usually automatic after master succeeds), then exit.\n",
   "  --abort id  : Mark job <id> as having aborted, i.e., stopped without a proper\n",
   "                success or failure, then exit.\n",
   "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
@@ -269,7 +269,7 @@ local
     in CharVector.tabulate(n,(fn _ => #" ")) end
   val no_skip = ((fn _ => false), "Starting ")
 in
-  fun run_regression resumed id =
+  fun run_regression resumed is_master id =
     let
       val root = OS.FileSys.getDir()
       val holdir = OS.Path.concat(root,HOLDIR)
@@ -318,7 +318,7 @@ in
         if success then
           let in
             API.post (Append(id,"SUCCESS"));
-            List.app (upload id) artefact_paths;
+            if is_master then List.app (upload id) artefact_paths else ();
             API.post (Stop id)
           end
         else ()
@@ -372,10 +372,11 @@ fun work resumed id =
         in
           build_hol reused id
         end
+      val is_master = case bcml of Bbr _ => true | _ => false
     in
       built_hol andalso
       (diag ["Running regression for job ",jid];
-       run_regression resumed id)
+       run_regression resumed is_master id)
     end
   end
 
