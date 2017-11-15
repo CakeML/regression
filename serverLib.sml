@@ -708,7 +708,8 @@ in
 
   local open OS.Path in
     fun artefact_link jid f =
-      a (String.concat[host,concat(concat(concat(base base_url,artefacts_dir),jid),f)]) f
+      String.concat
+        [a (String.concat[host,concat(concat(concat(base base_url,artefacts_dir),jid),f)]) f, "\n"]
   end
 
   fun process_artefacts jid acc =
@@ -717,7 +718,7 @@ in
     in
       if List.null arts then acc
       else
-        ul [("class","arts")] (List.map (artefact_link jid) arts) ::
+        String.concat (List.map (artefact_link jid) arts) ::
         strong "Artefacts:" ::
         acc
     end
@@ -728,7 +729,7 @@ in
       fun read_line () = Option.valOf (TextIO.inputLine inp)
       val prefix = "CakeML: "
       val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die 500 ["failed to find line ",prefix]
-      val acc = [String.concat[strong prefix,cakeml_commit_link sha,"\n"]]
+      val acc = [String.concat[strong (trimr prefix),cakeml_commit_link sha,"\n"]]
       val acc = process_message (read_line ()) @ acc
       val line = read_line ()
       val (line,acc) =
@@ -740,13 +741,13 @@ in
             val acc = line::acc
             val prefix = "Merging into: "
             val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die 500 ["failed to find line ",prefix]
-            val acc = (String.concat[strong prefix,cakeml_commit_link sha,"\n"])::acc
+            val acc = (String.concat[strong (trimr prefix),cakeml_commit_link sha,"\n"])::acc
             val acc = process_message (read_line ()) @ acc
           in (read_line (), acc) end
         else (line,acc)
       val prefix = "HOL: "
       val sha = extract_prefix_trimr prefix line handle Option => cgi_die 500 ["failed to find line ",prefix]
-      val acc = (String.concat[strong prefix,hol_commit_link sha,"\n"])::acc
+      val acc = (String.concat[strong (trimr prefix),hol_commit_link sha,"\n"])::acc
       val acc = process_message (read_line ()) @ acc
       exception Return of string list
       val acc =
@@ -754,7 +755,7 @@ in
           val prefix = "Machine: "
           val line = read_line () handle Option => raise (Return acc)
           val name = extract_prefix_trimr prefix line handle Option => raise (Return (line::acc))
-          val acc = (String.concat[strong prefix,escape name,"\n"])::acc
+          val acc = (String.concat[strong (trimr prefix),escape name,"\n"])::acc
           val line = read_line () handle Option => raise (Return acc)
         in
           if String.size line = 1

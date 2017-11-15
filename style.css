@@ -11,7 +11,6 @@ ul.jobs li span { font-size: 18px; }
 ul.jobs li span.success { color: #0d0 }
 ul.jobs li span.failure { color: #d00 }
 ul.jobs li span.nowrap { white-space: nowrap; }
-ul.arts { list-style-type: none; margin: 0em; padding-left: 1em; }
 a { color: #337ab7; text-decoration: none; }
 a:hover { text-decoration: underline; }
 footer { margin-top: 2em; }

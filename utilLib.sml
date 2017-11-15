@@ -44,6 +44,9 @@ structure utilLib = struct
 
   val curl_path = "/usr/bin/curl"
 
+  fun trimr s =
+    Substring.string(Substring.dropr Char.isSpace (Substring.full s))
+
   fun extract_prefix_trimr prefix line =
     let
       val line = Substring.full line
