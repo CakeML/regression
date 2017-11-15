@@ -3,48 +3,52 @@ The API that the server and worker agree on.
 
 Reference:
 
-  waiting:
-    returns space-separated list of ids of waiting jobs
+  GET methods:
 
-  refresh:
-    update the queues according to the current state on GitHub
-    returns "refreshed"
+    waiting:
+      returns space-separated list of ids of waiting jobs
 
-  job id:
-    returns information on job <id>
-    including:
-      - commits (including pull request integration, if any)
-      - (worker) name and time started (if any)
-      - output so far
+    job id:
+      returns information on job <id>
+      including:
+        - commits (including pull request integration, if any)
+        - (worker) name and time started (if any)
+        - output so far
 
-  claim id name:
-    worker <name> claims job <id>.
-    <name> is in the query string.
-    returns "claimed"
-    fails if <id> is not currently waiting
+  POST methods:
 
-  append id line:
-    record <line> as additional output for job <id> with a timestamp.
-    <line> is in the query string.
-    returns "appended"
-    fails if <id> is not currently running
+    refresh:
+      update the queues according to the current state on GitHub
+      returns "Refreshed"
 
-  log id data:
-    append <data> as additional output for job <id>.
-    <data> is POST data.
-    returns "logged"
-    fails if <id> is not currently running
+    claim id name:
+      worker <name> claims job <id>.
+      <name> is in the query string.
+      returns "Claimed"
+      fails (409) if <id> is not currently waiting
 
-  stop id:
-    mark job <id> as stopped
-    returns "stopped"
-    sends email with output
-    fails if <id> is not currently running
+    append id line:
+      record <line> as additional output for job <id> with a timestamp.
+      <line> is in the query string.
+      returns "Appended"
+      fails (409) if <id> is not currently running
 
-  abort id:
-    mark job <id> as aborted
-    returns "aborted"
-    fails if <id> is not currently stopped
+    log id data:
+      append <data> as additional output for job <id>.
+      <data> is POST data.
+      returns "Logged"
+      fails (409) if <id> is not currently running
+
+    stop id:
+      mark job <id> as stopped
+      returns "Stopped"
+      sends email with output
+      fails (409) if <id> is not currently running
+
+    abort id:
+      mark job <id> as aborted
+      returns "Aborted"
+      fails (409) if <id> is not currently stopped
 
   all failures return text starting with "Error:"
 
@@ -83,17 +87,20 @@ val cakeml_token = until_space (file_to_string "cakeml-token")
                      TextIO.output(TextIO.stdErr,"Could not find cakeml-token. Try sha1sum worker.sml >cakeml-token.\n");
                      OS.Process.exit OS.Process.failure)
 
-datatype api = Waiting | Refresh
-             | Job of id | Claim of id * worker_name
-             | Append of id * line (* not including newline *)
-             | Stop of id | Abort of id
+datatype get_api = Waiting | Job of id
+datatype post_api =
+    Refresh | Log of id * string
+  | Claim of id * worker_name
+  | Append of id * line (* not including newline *)
+  | Stop of id | Abort of id
+datatype api = G of get_api | P of post_api
 
-val refresh_response = "refreshed\n"
-val claim_response = "claimed\n"
-val append_response = "appended\n"
-val stop_response = "stopped\n"
-val abort_response = "aborted\n"
-val log_response = "logged\n"
+fun post_response Refresh = "Refreshed\n"
+  | post_response (Claim _) = "Claimed\n"
+  | post_response (Append _) = "Appended\n"
+  | post_response (Stop _) = "Stopped\n"
+  | post_response (Abort _) = "Aborted\n"
+  | post_response (Log _) = "Logged\n"
 
 fun percent_decode s =
   let
@@ -117,17 +124,24 @@ fun percent_decode s =
     handle e => (TextIO.output(TextIO.stdErr,String.concat["percent decode failed on ",s,"\n",exnMessage e,"\n"]); raise e)
   end
 
-fun api_to_string Waiting = "/waiting"
-  | api_to_string Refresh = "/refresh"
-  | api_to_string (Job id) = String.concat["/job/",Int.toString id]
-  | api_to_string (Claim (id,name)) = String.concat["/claim/",Int.toString id]
-  | api_to_string (Append (id,line)) = String.concat["/append/",Int.toString id]
-  | api_to_string (Stop id) = String.concat["/stop/",Int.toString id]
-  | api_to_string (Abort id) = String.concat["/abort/",Int.toString id]
+fun api_to_string (G Waiting) = "/waiting"
+  | api_to_string (P Refresh) = "/refresh"
+  | api_to_string (P (Log (id,s))) = String.concat["/log/",Int.toString id]
+  | api_to_string (G (Job id)) = String.concat["/job/",Int.toString id]
+  | api_to_string (P (Claim (id,name))) = String.concat["/claim/",Int.toString id]
+  | api_to_string (P (Append (id,line))) = String.concat["/append/",Int.toString id]
+  | api_to_string (P (Stop id)) = String.concat["/stop/",Int.toString id]
+  | api_to_string (P (Abort id)) = String.concat["/abort/",Int.toString id]
 
-fun api_curl_args (Append (_,line)) = ["--get","--data-urlencode",String.concat["line=",line]]
-  | api_curl_args (Claim  (_,name)) = ["--get","--data-urlencode",String.concat["name=",name]]
-  | api_curl_args _ = []
+fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line=",line]]
+  | post_curl_args (Claim  (_,name)) = ["--data-urlencode",String.concat["name=",name]]
+  | post_curl_args (Log  (_,file)) = ["--data-binary",String.concat["@",file]]
+  | post_curl_args (Stop _) = ["--data",""]
+  | post_curl_args (Abort _) = ["--data",""]
+  | post_curl_args (Refresh) = ["--data",""]
+
+fun api_curl_args (G _) = []
+  | api_curl_args (P p) = post_curl_args p
 
 fun id_from_string n =
   case Int.fromString n of NONE => NONE
@@ -140,18 +154,25 @@ fun read_query prefix s =
     else NONE
   | _ => NONE
 
-fun api_from_string s q =
-  if s = "/waiting" then SOME Waiting
-  else if s = "/refresh" then SOME Refresh
-  else (case String.tokens (equal #"/") s of
+fun get_from_string s =
+  if s = "/waiting" then SOME Waiting else
+  case String.tokens (equal #"/") s of
     ["job",n] => Option.map Job (id_from_string n)
-  | ["claim",n] => Option.mapPartial
+  | _ => NONE
+
+fun post_from_string s q =
+  if s = "/refresh" then SOME Refresh
+  else (case String.tokens (equal #"/") s of
+    ["claim",n] => Option.mapPartial
                     (fn id => Option.map (fn s => Claim(id,s))
                               (Option.mapPartial (read_query "name") q))
                     (id_from_string n)
   | ["append",n] => Option.mapPartial
                     (fn id => Option.map (fn s => Append(id,s))
                               (Option.mapPartial (read_query "line") q))
+                    (id_from_string n)
+  | ["log",n] => Option.mapPartial
+                    (fn id => Option.map (fn s => Log(id,s)) q)
                     (id_from_string n)
   | ["stop",n] => Option.map Stop (id_from_string n)
   | ["abort",n] => Option.map Abort (id_from_string n)

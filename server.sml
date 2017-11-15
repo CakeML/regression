@@ -43,40 +43,40 @@ fun job id =
     OS.Path.concat(q,f)
   end
 
-fun claim id name =
+fun claim (id,name) =
   let
     val f = Int.toString id
     val old = OS.Path.concat("waiting",f)
     val new = OS.Path.concat("running",f)
     val () =
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
-        cgi_die ["job ",f, " is both waiting and running"]
+        cgi_die 500 ["job ",f, " is both waiting and running"]
       else OS.FileSys.rename{old = old, new = new}
     val out = TextIO.openAppend new
     val () = print_claimed out (name,Date.fromTimeUniv(Time.now()))
     val () = TextIO.closeOut out
     val inp = TextIO.openIn new
     val sha = get_head_sha (read_bare_snapshot inp)
-              handle Option => cgi_die ["job ",f," has invalid file format"]
+              handle Option => cgi_die 500 ["job ",f," has invalid file format"]
     val () = TextIO.closeIn inp
   in
     GitHub.set_status f sha Pending
   end
 
-fun append id line =
+fun append (id,line) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
-    val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die ["job ",f," is not running: cannot append"]; raise e)
+    val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die 409 ["job ",f," is not running: cannot append"]; raise e)
   in
     print_log_entry out (Date.fromTimeUniv(Time.now()),line) before TextIO.closeOut out
   end
 
-fun log id data =
+fun log (id,data) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
-    val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die ["job ",f," is not running: cannot log"]; raise e)
+    val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die 409 ["job ",f," is not running: cannot log"]; raise e)
   in
     TextIO.output(out,data) before TextIO.closeOut out
   end
@@ -89,17 +89,18 @@ fun stop id =
     val () =
       if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
         if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
-          cgi_die ["job ",f, " is both running and stopped"]
+          cgi_die 500 ["job ",f, " is both running and stopped"]
         else OS.FileSys.rename{old = old, new = new}
-      else cgi_die ["job ",f," is not running: cannot stop"]
+      else cgi_die 409 ["job ",f," is not running: cannot stop"]
     val inp = TextIO.openIn new
     val sha = get_head_sha (read_bare_snapshot inp)
     val status = read_status inp
     val () = TextIO.closeIn inp
     val () = GitHub.set_status f sha status
   in
-    send_email (String.concat["Job ",f,": ",#2 (GitHub.status status)])
-               (String.concat["See ",server,"/job/",f,"\n"])
+    ignore (
+      send_email (String.concat["Job ",f,": ",#2 (GitHub.status status)])
+                 (String.concat["See ",server,"/job/",f,"\n"]))
   end
 
 fun abort id =
@@ -110,9 +111,9 @@ fun abort id =
   in
     if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
-        cgi_die ["job ",f, " is both stopped and aborted"]
+        cgi_die 500 ["job ",f, " is both stopped and aborted"]
       else OS.FileSys.rename{old = old, new = new}
-    else cgi_die ["job ",f," is not stopped: cannot abort"]
+    else cgi_die 409 ["job ",f," is not stopped: cannot abort"]
   end
 
 fun refresh () =
@@ -129,86 +130,75 @@ fun refresh () =
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
   in () end
 
-datatype request =
-    Get of api
-  | Post of id * string
-  | Html of html_request
+datatype request = Api of api | Html of html_request
 
-fun check_auth auth =
-  if auth = SOME (String.concat["Bearer ",cakeml_token]) then ()
-  else cgi_die ["Unauthorized: ", Option.valOf auth handle Option => "got nothing"]
+fun check_auth auth ua =
+  if auth = SOME (String.concat["Bearer ",cakeml_token]) orelse
+     Option.map (String.isPrefix "GitHub-Hookshot/") ua = SOME true
+  then ()
+  else cgi_die 401 ["Unauthorized: ", Option.valOf auth handle Option => "got nothing"]
 
 fun get_api () =
   case (OS.Process.getEnv "PATH_INFO",
-        OS.Process.getEnv "REQUEST_METHOD",
-        OS.Process.getEnv "HTTP_AUTHORIZATION") of
-    (SOME path_info, SOME "GET", auth) =>
+        OS.Process.getEnv "REQUEST_METHOD") of
+    (NONE, SOME "GET") => SOME (Html Overview)
+  | (SOME path_info, SOME "GET") =>
       if String.isPrefix "/api" path_info then
-        let val () = check_auth auth in
-          Option.map Get
-            (api_from_string
-              (String.extract(path_info,4,NONE))
-              (OS.Process.getEnv "QUERY_STRING"))
-        end
-      else
-        (case String.tokens (equal #"/") path_info of
-          ["job",n] => Option.map (Html o DisplayJob) (id_from_string n)
-        | _ => SOME (Html Overview))
-  | (NONE, SOME "GET", _) => SOME (Html Overview)
-  | (SOME path_info, SOME "POST", auth) =>
-      let in
-      case String.tokens (equal #"/") path_info of
-        ["api","log",n] =>
-          let val () = check_auth auth in
-            Option.mapPartial
-             (fn len =>
-               Option.compose
-                 ((fn id => Post(id,TextIO.inputN(TextIO.stdIn,len))),
-                  id_from_string) n)
-             (Option.composePartial(Int.fromString,OS.Process.getEnv) "CONTENT_LENGTH")
-          end
-      | ["api","refresh"] =>
-          if Option.map
-               (String.isPrefix "GitHub-Hookshot/")
-               (OS.Process.getEnv "HTTP_USER_AGENT") = SOME true
-          then SOME (Get Refresh)
-          else cgi_die ["Bad request type: wanted GET got POST."]
-      | _ => NONE
-      end
+        Option.map (Api o G) (get_from_string (String.extract(path_info,4,NONE)))
+      else if String.isPrefix "/job/" path_info then
+        Option.map (Html o DisplayJob) (id_from_string (String.extract(path_info,5,NONE)))
+      else cgi_die 404 []
+  | (SOME path_info, SOME "POST") =>
+    let
+      val () = cgi_assert (String.isPrefix "/api" path_info) 400 [path_info," is not a known endpoint"]
+      val () = check_auth (OS.Process.getEnv "HTTP_AUTHORIZATION")
+                          (OS.Process.getEnv "HTTP_USER_AGENT")
+      val q = Option.map (fn len => TextIO.inputN(TextIO.stdIn,len))
+                (Option.mapPartial Int.fromString
+                  (OS.Process.getEnv "CONTENT_LENGTH"))
+    in
+      Option.map (Api o P)
+        (post_from_string (String.extract(path_info,4,NONE)) q)
+    end
   | _ => NONE
 
 local
   fun id_list ids = String.concatWith " " (List.map Int.toString ids)
 in
   fun dispatch api =
-    text_response (
-      case api of
-        Waiting => id_list (waiting())
-      | Refresh => (refresh (); refresh_response)
-      | Job id => file_to_string (job id)
-      | Claim(id,name) => (claim id name; claim_response)
-      | Append(id,line) => (append id line; append_response)
-      | Stop id => (stop id; stop_response)
-      | Abort id => (abort id; abort_response)
-    ) handle e => cgi_die [exnMessage e]
+    let
+      val response =
+        case api of
+          (G Waiting) => id_list (waiting())
+        | (G (Job id)) => file_to_string (job id)
+        | (P p) => post_response p
+      val () =
+        case api of
+          (G _) => ()
+        | (P Refresh) => refresh ()
+        | (P (Claim x)) => claim x
+        | (P (Append x)) => append x
+        | (P (Log x)) => log x
+        | (P (Stop x)) => stop x
+        | (P (Abort x)) => abort x
+    in
+      write_text_response 200 response
+    end
 end
 
-fun dispatch_log id data =
-  text_response (log id data; log_response)
-  handle e => cgi_die [exnMessage e]
-
-fun dispatch_req (Get api) = dispatch api
-  | dispatch_req (Post (id,data)) = dispatch_log id data
-  | dispatch_req (Html req) =
-      html_response req
-      handle e => cgi_die [exnMessage e]
+fun dispatch_req req =
+  let in
+    case req of
+      (Api api) => dispatch api
+    | (Html req) => html_response req
+  end handle e => cgi_die 500 [exnMessage e]
 
 fun main () =
   let
     val () = ensure_queue_dirs ()
   in
     case get_api () of
-      NONE => cgi_die ["bad usage"]
+      NONE => cgi_die 400 ["bad usage"]
     | SOME req =>
       let
         val fd = acquire_lock ()

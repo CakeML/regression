@@ -124,23 +124,16 @@ structure API = struct
       std_options
     @ api_curl_args api
     @ [String.concat[endpoint,api_to_string api]])
-  val send = system_output o curl_cmd
-  fun curl_log id file = (curl_path,
-      std_options
-      @ ["--request","POST","--data-binary",String.concat["@",file],
-         String.concat[endpoint,"/log/",Int.toString id]])
-  fun append id line =
-    let val response = send (Append(id,line))
-    in assert (response=append_response) ["Unexpected append response: ",response] end
-  fun stop id =
-    let val response = send (Stop id)
-    in assert (response=stop_response) ["Unexpected stop response: ",response] end
-  fun abort id =
-    let val response = send (Abort id)
-    in assert (response=abort_response) ["Unexpected abort response: ",response] end
-  fun log id file =
-    let val response = system_output (curl_log id file)
-    in assert (response=log_response) ["Unexpected log response: ",response] end
+  val raw_post = system_output o curl_cmd o P
+  val get = system_output o curl_cmd o G
+  fun post p =
+    let
+      val expected = post_response p
+      val response = raw_post p
+    in
+      assert (response=expected)
+        ["Unexpected response:\nWanted: ",expected,"Got: ",response]
+    end
 end
 
 val HOLDIR = "HOL"
@@ -240,9 +233,9 @@ in
                   system_capture_append "bin/build --nograph"
       val () = OS.FileSys.chDir OS.Path.parentArc
       val () = if built then () else
-               (API.append id "FAILED: building HOL";
-                API.log id capture_file;
-                API.stop id)
+               (API.post (Append (id, "FAILED: building HOL"));
+                API.post (Log(id,capture_file));
+                API.post (Stop id))
     in
       built
     end
@@ -289,25 +282,25 @@ in
           let
             val () = output_to_file (resume_file, line)
             val dir = until_space line
-            val () = API.append id (String.concat[#2 skip,dir])
+            val () = API.post (Append(id, String.concat[#2 skip,dir]))
             val entered = (OS.FileSys.chDir dir; true)
-                          handle e as OS.SysErr _ => (API.append id (exnMessage e); false)
+                          handle e as OS.SysErr _ => (API.post (Append(id, exnMessage e)); false)
           in
             if entered andalso system_capture holmake_cmd then
-              (API.append id
-                (String.concat["Finished ",dir,pad dir,file_to_line timing_file]);
+              (API.post (Append(id,
+                 String.concat["Finished ",dir,pad dir,file_to_line timing_file]));
                OS.FileSys.chDir cakemldir;
                loop no_skip)
             else
-              (API.append id (String.concat["FAILED: ",dir]);
-               API.log id capture_file;
-               API.stop id;
+              (API.post (Append(id,String.concat["FAILED: ",dir]));
+               API.post (Log(id,capture_file));
+               API.post (Stop id);
                false)
           end
       val success = loop skip
       val () =
         if success then
-          (API.append id "SUCCESS"; API.stop id)
+          (API.post (Append(id,"SUCCESS")); API.post (Stop id))
         else ()
       val () = OS.FileSys.chDir root
     in
@@ -337,7 +330,7 @@ fun validate_resume jid bhol bcml =
 
 fun work resumed id =
   let
-    val response = API.send (Job id)
+    val response = API.get (Job id)
     val jid = Int.toString id
   in
     if String.isPrefix "Error:" response
@@ -355,7 +348,7 @@ fun work resumed id =
           val () = diag ["Preparing CakeML for job ",jid]
           val () = prepare_cakeml bcml
           val () = diag ["Building HOL for job ",jid]
-          val () = API.append id "Building HOL"
+          val () = API.post (Append(id,"Building HOL"))
         in
           build_hol reused id
         end
@@ -379,12 +372,12 @@ fun main () =
              then (TextIO.output(TextIO.stdOut, usage_string(CommandLine.name())); OS.Process.exit OS.Process.success)
              else ()
     val () = if List.exists (equal "--refresh") args
-             then (TextIO.output(TextIO.stdOut, API.send Refresh); OS.Process.exit OS.Process.success)
+             then (TextIO.output(TextIO.stdOut, API.raw_post Refresh); OS.Process.exit OS.Process.success)
              else ()
     val () = case get_int_arg "--abort" args of NONE => ()
              | SOME id => (
                  diag ["Marking job ",Int.toString id," as aborted."];
-                 API.abort id; OS.Process.exit OS.Process.success)
+                 API.post (Abort id); OS.Process.exit OS.Process.success)
     val no_poll = List.exists (equal"--no-poll") args
     val no_loop = List.exists (equal"--no-loop") args
     val resume = get_int_arg "--resume" args
@@ -397,7 +390,7 @@ fun main () =
           case select of SOME id => [id] | NONE =>
           case resume of SOME id => [id] | NONE =>
           List.map (Option.valOf o Int.fromString)
-            (String.tokens Char.isSpace (API.send Waiting))
+            (String.tokens Char.isSpace (API.get Waiting))
       in
         case waiting_ids of [] =>
           if no_poll then diag ["No waiting jobs. Exiting."]
@@ -407,8 +400,10 @@ fun main () =
             val jid = Int.toString id
             val () = diag ["About to work on ",server,"/job/",jid]
             val resumed = Option.isSome resume
+            val claim = Claim(id,name)
+            val claim_response = post_response claim
             val response = if resumed then claim_response
-                           else API.send (Claim(id,name))
+                           else API.raw_post claim
             val success =
               if response=claim_response
               then work resumed id

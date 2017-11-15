@@ -41,22 +41,34 @@ structure serverLib = struct
 
 open apiLib
 
-val text_response_header = "Content-Type:text/plain\n\n"
+val content_type_text = "Content-Type:text/plain\n"
 
-fun text_response s =
-  let
-    val () = TextIO.output(TextIO.stdOut, text_response_header)
-    val () = TextIO.output(TextIO.stdOut, s)
-  in () end
+fun http_status 200 = ""
+  | http_status 400 = "Status:400 Bad Request\n"
+  | http_status 401 = "Status:401 Unauthorized\n"
+  | http_status 404 = "Status:404 Not Found\n"
+  | http_status 409 = "Status:409 Conflict\n"
+  | http_status 500 = "Status:500 Internal Server Error\n"
+  | http_status _ = "Status:500 Impossible Server Error\n"
 
-fun cgi_die ls =
-  (List.app (fn s => TextIO.output(TextIO.stdOut, s))
-     (text_response_header::"Error:\n"::ls);
-   TextIO.output(TextIO.stdOut,"\n");
-   OS.Process.exit OS.Process.success;
-   raise (Fail "impossible"))
+fun write_text_response st s =
+  let in
+    TextIO.output(TextIO.stdOut, content_type_text);
+    TextIO.output(TextIO.stdOut, http_status st);
+    TextIO.output(TextIO.stdOut, "\n");
+    TextIO.output(TextIO.stdOut, s)
+  end
 
-fun cgi_assert b ls = if b then () else cgi_die ls
+fun cgi_die st ls =
+  let in
+    write_text_response st "Error:\n";
+    List.app (fn s => TextIO.output(TextIO.stdOut, s)) ls;
+    TextIO.output(TextIO.stdOut,"\n");
+    OS.Process.exit OS.Process.success;
+    raise (Fail "impossible")
+  end
+
+fun cgi_assert b st ls = if b then () else cgi_die st ls
 
 local
   open Posix.IO Posix.FileSys
@@ -162,7 +174,7 @@ in
       fun loop ls =
         case readDir dir of NONE => ls
       | SOME d => if isDir d then loop (List.filter(not o equal d) ls)
-                  else if List.exists (equal d) ls then cgi_die [d," exists and is not a directory"]
+                  else if List.exists (equal d) ls then cgi_die 500 [d," exists and is not a directory"]
                   else loop ls
     in
       List.app mkDir (loop queue_dirs) before closeDir dir
@@ -174,19 +186,19 @@ local
 in
   fun read_list q () =
     let
-      val dir = openDir q handle OS.SysErr _ => cgi_die ["could not open ",q," directory"]
-      fun badFile f = cgi_die ["found bad filename ",f," in ",q]
+      val dir = openDir q handle OS.SysErr _ => cgi_die 500 ["could not open ",q," directory"]
+      fun badFile f = cgi_die 500 ["found bad filename ",f," in ",q]
       fun loop acc =
         case readDir dir of NONE => acc before closeDir dir
-      | SOME f => if isDir (OS.Path.concat(q,f)) handle OS.SysErr _ => cgi_die [f, " disappeared from ", q, " unexpectedly"]
-                  then cgi_die ["found unexpected directory ",f," in ",q]
+      | SOME f => if isDir (OS.Path.concat(q,f)) handle OS.SysErr _ => cgi_die 500 [f, " disappeared from ", q, " unexpectedly"]
+                  then cgi_die 500 ["found unexpected directory ",f," in ",q]
                   else case Int.fromString f of NONE => badFile f
                        | SOME id => if check_id f id then loop (insert id acc) else badFile f
       val ids = loop []
     in ids end
   fun clear_list q =
     let
-      val dir = openDir q handle OS.SysErr _ => cgi_die ["could not open ",q," directory"]
+      val dir = openDir q handle OS.SysErr _ => cgi_die 500 ["could not open ",q," directory"]
       fun loop () =
         case readDir dir of NONE => closeDir dir
       | SOME f =>
@@ -194,7 +206,7 @@ in
           val f = OS.Path.concat(q,f)
           val () = remove f
                    handle (e as OS.SysErr _) =>
-                     cgi_die ["unexpected error removing ",f,"\n",exnMessage e]
+                     cgi_die 500 ["unexpected error removing ",f,"\n",exnMessage e]
         in loop () end
     in loop () end
 end
@@ -212,15 +224,15 @@ fun queue_of_job f =
     fun access dir = OS.FileSys.access(mk_path dir, [OS.FileSys.A_READ])
   in
     find access queue_dirs
-    handle Match => cgi_die ["job ",f," not found"]
+    handle Match => cgi_die 404 ["job ",f," not found"]
   end
 
 fun read_job_snapshot q id : bare_snapshot =
   let
     val f = OS.Path.concat(q,Int.toString id)
-    val inp = TextIO.openIn f handle IO.Io _ => cgi_die ["cannot open ",f]
+    val inp = TextIO.openIn f handle IO.Io _ => cgi_die 500 ["cannot open ",f]
     val bs = read_bare_snapshot inp
-             handle Option => cgi_die [f," has invalid file format"]
+             handle Option => cgi_die 500 [f," has invalid file format"]
     val () = TextIO.closeIn inp
   in bs end
 
@@ -255,7 +267,7 @@ fun add_waiting avoid_ids (snapshot,id) =
     val id = first_unused_id avoid_ids id
     val f = Int.toString id
     val path = OS.Path.concat("waiting",f)
-    val () = cgi_assert (not(OS.FileSys.access(path, []))) ["job ",f," already exists waiting"]
+    val () = cgi_assert (not(OS.FileSys.access(path, []))) 500 ["job ",f," already exists waiting"]
     val out = TextIO.openOut path
     val () = print_snapshot out snapshot
     val () = TextIO.closeOut out
@@ -271,7 +283,7 @@ in
       val mail_cmd = ("/usr/bin/mail",
         ["-s",subject,"-r",to_address,"-m",email_file,"-.",to_address])
     in
-      system_output cgi_die mail_cmd
+      system_output (cgi_die 500) mail_cmd
     end
 end
 
@@ -283,7 +295,7 @@ structure GitHub = struct
     "--request","POST",
     "--data",String.concat["{\"query\" : \"",query,"\"}"],
     graphql_endpoint])
-  val graphql = system_output cgi_die o graphql_curl_cmd
+  val graphql = system_output (cgi_die 500) o graphql_curl_cmd
 
   fun cakeml_status_endpoint sha =
     String.concat["/repos/CakeML/cakeml/statuses/",sha]
@@ -317,11 +329,11 @@ structure GitHub = struct
         rest_curl_cmd
           (cakeml_status_endpoint sha)
           (status_json id (status st))
-      val response = system_output cgi_die cmd
+      val response = system_output (cgi_die 500) cmd
     in
       cgi_assert
         (String.isPrefix "201" response)
-        ["Error setting GitHub commit status\n",response]
+        500 ["Error setting GitHub commit status\n",response]
     end
 end
 
@@ -482,7 +494,7 @@ in
          We could read it from GitHub instead. *)
       fun add_prs prs [m as (Branch(_,base_obj))] =
         m :: (List.map (PR o with_base_obj base_obj) prs)
-      | add_prs _ _ = cgi_die ["add_prs"]
+      | add_prs _ _ = cgi_die 500 ["add_prs"]
       val (cakeml_integrations,ss) =
         read_dict
         [("data",
@@ -512,7 +524,7 @@ in
       List.map (fn i => { cakeml = i, hol = hol_obj } )
         (List.rev cakeml_integrations) (* after rev: oldest pull request first, master last *)
     end
-    handle ReadFailure s => cgi_die["Could not read response from GitHub: ",s]
+    handle ReadFailure s => cgi_die 500 ["Could not read response from GitHub: ",s]
 end
 
 fun read_last_date inp =
@@ -589,8 +601,8 @@ in
       val f = OS.Path.concat(q,jid)
       val inp = TextIO.openIn f
       val typ = read_job_type inp
-                handle IO.Io _ => cgi_die ["cannot open ",f]
-                     | Option => cgi_die [f," has invalid file format"]
+                handle IO.Io _ => cgi_die 500 ["cannot open ",f]
+                     | Option => cgi_die 500 [f," has invalid file format"]
       val attrs = if q = "stopped" then status_attrs (read_status inp) else []
       val last_date = if q = "running" then read_last_date inp else NONE
       val () = TextIO.closeIn inp
@@ -643,7 +655,7 @@ in
       val hh = Int.quot(tm,60) val mm = Int.rem(tm,60)
       val tK = Option.valOf(Int.fromString(List.nth(timing,1)))
       val tM = Int.quot(tK,1000) val K = Int.rem(tK,1000)
-      val  G = Int.quot(tM,1000) val M = Int.rem(tM,1000)
+      val tG = Int.quot(tM,1000) val M = Int.rem(tM,1000)
       fun i2 c n =
         String.concat[if n < 10 then String.str c else "", Int.toString n]
       val i2s = i2 #" " and i20 = i2 #"0"
@@ -661,8 +673,8 @@ in
         else
           String.concat ["      ", i2s ss, "s"],
         " ",
-        if G > 0 then
-          i3s G "GB"
+        if tG > 0 then
+          i3s tG "GB"
         else if M > 0 then
           i3s M "MB" else
           i3s K "kB"]
@@ -684,7 +696,7 @@ in
       val inp = TextIO.openString s
       fun read_line () = Option.valOf (TextIO.inputLine inp)
       val prefix = "CakeML: "
-      val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+      val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die 500 ["failed to find line ",prefix]
       val acc = [String.concat[strong prefix,cakeml_commit_link sha,"\n"]]
       val acc = process_message (read_line ()) @ acc
       val line = read_line ()
@@ -696,13 +708,13 @@ in
             val line = String.concat[cakeml_pr_link pr, escape (Substring.string rest)]
             val acc = line::acc
             val prefix = "Merging into: "
-            val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die ["failed to find line ",prefix]
+            val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die 500 ["failed to find line ",prefix]
             val acc = (String.concat[strong prefix,cakeml_commit_link sha,"\n"])::acc
             val acc = process_message (read_line ()) @ acc
           in (read_line (), acc) end
         else (line,acc)
       val prefix = "HOL: "
-      val sha = extract_prefix_trimr prefix line handle Option => cgi_die ["failed to find line ",prefix]
+      val sha = extract_prefix_trimr prefix line handle Option => cgi_die 500 ["failed to find line ",prefix]
       val acc = (String.concat[strong prefix,hol_commit_link sha,"\n"])::acc
       val acc = process_message (read_line ()) @ acc
       exception Return of string list
