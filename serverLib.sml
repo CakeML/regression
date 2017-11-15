@@ -609,15 +609,16 @@ in
       val typ = read_job_type inp
                 handle IO.Io _ => cgi_die 500 ["cannot open ",f]
                      | Option => cgi_die 500 [f," has invalid file format"]
-      val attrs = if q = "stopped" then status_attrs (read_status inp) else []
+      val format_type = if q = "stopped" then span (status_attrs (read_status inp)) else String.concat
       val last_date = if q = "running" then read_last_date inp else NONE
       val () = TextIO.closeIn inp
       val ago_string =
         case last_date of NONE => ""
         | SOME date => time_ago date
     in
-      String.concat[a (String.concat[base_url,"/job/",jid]) jid, " ",
-                    span attrs ["(", typ, ")",ago_string]]
+      span [("class","nowrap")]
+        [a (String.concat[base_url,"/job/",jid]) jid, " ",
+         format_type ["(", typ, ")",ago_string]]
     end
 
   fun html_job_list (q,ids) =
