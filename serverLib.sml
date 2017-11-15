@@ -776,7 +776,7 @@ in
     @ [footer [a host "CakeML main page",
                a "https://github.com/CakeML/regression" "Site code on GitHub",
                a (String.concat["https://validator.w3.org/nu/?doc=",server]) "Valid HTML",
-               a (String.concat["https://jigsaw.w3.org/css-validator/validator?uri=",server,style_href]) "Valid CSS"]]
+               a (String.concat["https://jigsaw.w3.org/css-validator/validator?uri=",host,style_href]) "Valid CSS"]]
   | req_body (DisplayJob id) =
     let
       val jid = Int.toString id
