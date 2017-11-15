@@ -216,6 +216,13 @@ in
                      cgi_die 500 ["unexpected error removing ",f,"\n",exnMessage e]
         in loop () end
     in loop () end
+  fun read_artefacts jid =
+    let
+      val dir = openDir(OS.Path.concat(artefacts_dir,jid))
+      fun loop acc =
+        case readDir dir of NONE => acc before closeDir dir
+        | SOME f => loop (f :: acc)
+    in loop [] end handle OS.SysErr _ => []
 end
 
 val waiting = List.rev o read_list "waiting"
@@ -592,7 +599,7 @@ structure HTML = struct
     | status_attrs Failure = [("class","failure")]
     | status_attrs _ = []
   val li = elt "li"
-  fun ul ls = element "ul" [] (List.map li ls)
+  fun ul attrs ls = element "ul" attrs (List.map li ls)
   val footer = element "footer" []
 end
 
@@ -624,7 +631,7 @@ in
 
   fun html_job_list (q,ids) =
     if List.null ids then []
-    else [h2 q, ul (List.map (job_link q) ids)]
+    else [h2 q, ul [("class","jobs")] (List.map (job_link q) ids)]
 
   val cakeml_github = "https://github.com/CakeML/cakeml"
   val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
@@ -699,7 +706,23 @@ in
       ["\n", time_ago date, escape (Substring.string msg)]
     end handle Option => [escape s]
 
-  fun process s =
+  local open OS.Path in
+    fun artefact_link jid f =
+      a (String.concat[host,concat(concat(concat(base base_url,artefacts_dir),jid),f)]) f
+  end
+
+  fun process_artefacts jid acc =
+    let
+      val arts = read_artefacts jid
+    in
+      if List.null arts then acc
+      else
+        ul [("class","arts")] (List.map (artefact_link jid) arts) ::
+        strong "Artefacts:" ::
+        acc
+    end
+
+  fun process jid s =
     let
       val inp = TextIO.openString s
       fun read_line () = Option.valOf (TextIO.inputLine inp)
@@ -734,7 +757,9 @@ in
           val acc = (String.concat[strong prefix,escape name,"\n"])::acc
           val line = read_line () handle Option => raise (Return acc)
         in
-          if String.size line = 1 then line::acc else raise (Return (line::acc))
+          if String.size line = 1
+          then line :: process_artefacts jid acc
+          else raise (Return (line::acc))
         end handle Return acc => escape (TextIO.inputAll inp) :: acc
       fun format_log_line s =
         let
@@ -785,7 +810,7 @@ in
       val f = OS.Path.concat(q,jid)
       val s = file_to_string f
     in
-      [a base_url "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process s)]
+      [a base_url "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process jid s)]
     end
 
   fun html_response req =

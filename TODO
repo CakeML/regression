@@ -1,5 +1,3 @@
-TODO: Have worker upload bootstrapped compiler when a regression gets that far
-
 TODO: Make workers use regression-updates.cgi SSEs rather than polling
   The workers can use this (via curl) just as well as html clients.
 
