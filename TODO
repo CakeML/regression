@@ -1,7 +1,3 @@
-TODO: Show expected time required for a directory in progress
-  Can be calculated as the average time for this directory in other
-  stopped/running jobs
-
 TODO: Add interface to stop jobs. Rethink job categorisation.
   Should the job page have a link for cancelling that job?
   If so, how would workers know to do so? Polling?

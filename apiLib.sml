@@ -251,6 +251,54 @@ fun read_job_type inp =
     else "master"
   end
 
+fun read_secs timing =
+  let
+    val secs_millisecs = String.tokens (equal #".") timing
+    val whole_secs = List.nth(secs_millisecs,0)
+  in
+    if List.all Char.isDigit (String.explode whole_secs)
+    then Option.valOf(Int.fromString whole_secs)
+    else (* TODO: only for supporting legacy %E format
+                  could just update the files and remove this *)
+      let val ls = String.tokens (equal #":") whole_secs
+      in
+        Option.valOf(Int.fromString(List.nth(ls,0))) * 60 * 60 +
+        Option.valOf(Int.fromString(List.nth(ls,1))) * 60 +
+        Option.valOf(Int.fromString(List.nth(ls,2)))
+        handle Subscript =>
+          Option.valOf(Int.fromString(List.nth(ls,0))) * 60 +
+          Option.valOf(Int.fromString(List.nth(ls,1)))
+      end
+  end
+
+fun read_total_time dir inp =
+  let
+    fun loop () =
+      case TextIO.inputLine inp of NONE => NONE
+      | SOME line =>
+        let
+          val (_,rest) = extract_word line
+          val prefix = " Resuming "
+          val resuming = Substring.isPrefix prefix rest
+          val prefix = " Finished "
+          val finished = Substring.isPrefix prefix rest
+          val rest = Substring.triml (String.size prefix) rest
+          val (dir',rest) = Substring.splitl (not o Char.isSpace) rest
+          val dirs_match = Substring.isPrefix dir dir' andalso
+                           String.size dir = Substring.size dir'
+          val rest = Substring.dropl Char.isSpace rest
+          val (timing,_) = Substring.splitl (not o Char.isSpace) rest
+        in
+          if dirs_match then
+            if finished then
+              SOME (read_secs (Substring.string timing))
+              handle Option => loop () | Subscript => loop ()
+            else if resuming then NONE
+            else loop ()
+          else loop ()
+        end
+  in loop () end
+
 val max_dir_length = 50
 
 datatype status = Pending | Success | Failure | Aborted

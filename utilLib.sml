@@ -57,9 +57,8 @@ structure utilLib = struct
           (Substring.triml (String.size prefix) line))
     end
 
-  fun extract_word s =
-    let val (s1,s2) = Substring.splitl (not o Char.isSpace) (Substring.full s)
-    in (s1, Substring.string s2) end
+  val extract_word =
+    Substring.splitl (not o Char.isSpace) o Substring.full
 
   local
     open Unix

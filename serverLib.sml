@@ -119,6 +119,7 @@ type job = {
 val machine_date = Date.fmt "%Y-%m-%dT%H:%M:%SZ"
 val pretty_date = Date.fmt "%b %d %H:%M:%S"
 val pretty_date_moment = "MMM DD HH:mm:ss"
+fun machine_secs s = String.concat["PT",Int.toString s,"S"]
 
 fun print_claimed out (worker,date) =
   let
@@ -249,6 +250,19 @@ fun read_job_snapshot q id : bare_snapshot =
              handle Option => cgi_die 500 [f," has invalid file format"]
     val () = TextIO.closeIn inp
   in bs end
+
+fun timings_of_dir dir files =
+  let
+    fun foldthis (f,(t,fs)) =
+      let
+        val inp = TextIO.openIn f handle IO.Io _ => cgi_die 500 ["cannot open ",f]
+      in
+        (case read_total_time dir inp of NONE => (t,fs) | SOME s => (t+s,f::fs))
+        before TextIO.closeIn inp
+      end handle e => cgi_die 500 ["unexpected error on ",f,"\n",exnMessage e]
+  in
+    List.foldl foldthis (0,[]) files
+  end
 
 fun get_head_sha ({bcml,...}:bare_snapshot) =
   case bcml of Bbr sha => sha | Bpr {head_sha,...} => head_sha
@@ -577,6 +591,8 @@ structure HTML = struct
     "ls[i].innerHTML = ' [' + moment(ls[i].getAttribute('datetime')).fromNow() + ']';}",
     "else if (ls[i].getAttribute('class') == 'since') {",
     "ls[i].innerHTML = '[elapsed: ' + moment(ls[i].getAttribute('datetime')).fromNow(true) + ']';}",
+    "else if (ls[i].getAttribute('class') == 'duration') {",
+    "ls[i].innerHTML = '[average: ' + moment.duration(ls[i].getAttribute('datetime')).humanize() + ']';}",
     "else if (all) {",
     "ls[i].innerHTML = moment(ls[i].getAttribute('datetime')).format('",
     pretty_date_moment,"');}}}"]
@@ -595,6 +611,7 @@ structure HTML = struct
   val pre = elt "pre"
   fun time d = element "time" [("datetime",machine_date d)] [pretty_date d]
   fun time_ago d = element "time" [("datetime",machine_date d),("class","ago")] [" [",pretty_date d,"]"]
+  fun duration s = element "time" [("datetime",machine_secs s),("class","duration")] [Int.toString s,"s"]
   fun a href body = element "a" [("href",href)] [body]
   fun span attrs strs = element "span" attrs strs
   fun status_attrs Success = [("class","success")]
@@ -652,22 +669,7 @@ in
   fun format_rusage s =
     let
       val timing = String.tokens Char.isSpace s
-      val secs_millisecs = String.tokens (equal #".") (List.nth(timing,0))
-      val whole_secs = List.nth(secs_millisecs,0)
-      val ts =
-        if List.all Char.isDigit (String.explode whole_secs)
-        then Option.valOf(Int.fromString whole_secs)
-        else (* TODO: only for supporting legacy %E format
-                      could just update the files and remove this *)
-          let val ls = String.tokens (equal #":") whole_secs
-          in
-            Option.valOf(Int.fromString(List.nth(ls,0))) * 60 * 60 +
-            Option.valOf(Int.fromString(List.nth(ls,1))) * 60 +
-            Option.valOf(Int.fromString(List.nth(ls,2)))
-            handle Subscript =>
-              Option.valOf(Int.fromString(List.nth(ls,0))) * 60 +
-              Option.valOf(Int.fromString(List.nth(ls,1)))
-          end
+      val ts = read_secs (List.nth(timing,0))
       val tm = Int.quot(ts,60) val ss = Int.rem(ts,60)
       val hh = Int.quot(tm,60) val mm = Int.rem(tm,60)
       val tK = Option.valOf(Int.fromString(List.nth(timing,1)))
@@ -769,7 +771,7 @@ in
           val prefix = " Finished "
           val rest = extract_prefix_trimr prefix s
           val (dir,rest) = extract_word rest
-          val (space,rest) = Substring.splitl Char.isSpace (Substring.full rest)
+          val (space,rest) = Substring.splitl Char.isSpace rest
         in
           String.concat[
             prefix,
@@ -784,9 +786,15 @@ in
             val dir = extract_prefix_trimr prefix dir_part
             (* val pad = CharVector.tabulate(max_dir_length - String.size dir,(fn _ => #" ")) *)
             val (l,r) = Substring.splitAt (Substring.full time_part,6)
+            val files =
+              List.map (fn id => OS.Path.concat("running",Int.toString id)) (running()) @
+              List.map (fn id => OS.Path.concat("stopped",Int.toString id)) (stopped())
+            val (t,fs) = timings_of_dir dir files
+            val average = if List.null fs then [] else [" ",duration(Int.quot(t,List.length fs))]
             val line = String.concat [
               time_part, prefix, dir, " ",
-              Substring.string l, "class='since' ", Substring.string r, "\n" ]
+              Substring.string l, "class='since' ", Substring.string r,
+              String.concat average, "\n" ]
           in
             line :: rest
           end handle Option => acc | Subscript => acc end
