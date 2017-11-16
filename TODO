@@ -1,6 +1,6 @@
-TODO: Show more information on directories in progress
-  - Could display the time spent so far (i.e., now - start time)
-  - Could display the average time spent on this directory in other running/stopped jobs
+TODO: Show expected time required for a directory in progress
+  Can be calculated as the average time for this directory in other
+  stopped/running jobs
 
 TODO: Add interface to stop jobs. Rethink job categorisation.
   Should the job page have a link for cancelling that job?

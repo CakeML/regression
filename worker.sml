@@ -252,7 +252,6 @@ fun upload id f =
 local
   val resume_file = "resume"
   val time_options = String.concat["--format='%e %M' --output='",timing_file,"'"]
-  val max_dir_length = 50
   fun pad dir =
     let
       val z = String.size dir

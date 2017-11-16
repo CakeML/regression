@@ -251,6 +251,8 @@ fun read_job_type inp =
     else "master"
   end
 
+val max_dir_length = 50
+
 datatype status = Pending | Success | Failure | Aborted
 
 fun read_status inp =

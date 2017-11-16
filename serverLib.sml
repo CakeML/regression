@@ -575,6 +575,8 @@ structure HTML = struct
     "for (var i = 0; i < ls.length; i++) {",
     "if (ls[i].getAttribute('class') == 'ago') {",
     "ls[i].innerHTML = ' [' + moment(ls[i].getAttribute('datetime')).fromNow() + ']';}",
+    "else if (ls[i].getAttribute('class') == 'since') {",
+    "ls[i].innerHTML = '[elapsed: ' + moment(ls[i].getAttribute('datetime')).fromNow(true) + ']';}",
     "else if (all) {",
     "ls[i].innerHTML = moment(ls[i].getAttribute('datetime')).format('",
     pretty_date_moment,"');}}}"]
@@ -776,20 +778,31 @@ in
             format_rusage (Substring.string rest),
             "\n"]
         end handle Option => escape s
+      fun elapsed_time (acc as (dir_part::time_part::rest)) =
+          let in let
+            val prefix = " Starting "
+            val dir = extract_prefix_trimr prefix dir_part
+            (* val pad = CharVector.tabulate(max_dir_length - String.size dir,(fn _ => #" ")) *)
+            val (l,r) = Substring.splitAt (Substring.full time_part,6)
+            val line = String.concat [
+              time_part, prefix, dir, " ",
+              Substring.string l, "class='since' ", Substring.string r, "\n" ]
+          in
+            line :: rest
+          end handle Option => acc | Subscript => acc end
+        | elapsed_time acc = acc
       fun loop acc =
         let
           val line = read_line()
         in
           let
             val (date,rest) = ReadJSON.bare_read_date (Substring.full line)
-            val line =
-              String.concat
-               [time date,
-                format_log_line (Substring.string rest)]
+            val acc = time date :: acc
+            val acc = format_log_line (Substring.string rest) :: acc
           in
-            loop (line::acc)
+            loop acc
           end handle Option => escape (TextIO.inputAll inp) :: acc
-        end handle Option => acc
+        end handle Option => elapsed_time acc
     in
       String.concat(List.rev (loop acc)) before
       TextIO.closeIn inp
