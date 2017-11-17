@@ -837,9 +837,11 @@ in
 
   fun html_response req =
     let
-      val () = TextIO.output(TextIO.stdOut, html_response_header)
-      val () = TextIO.output(TextIO.stdOut, html ([header,body (req_body req)]))
-    in () end
+      val result = html ([header,body (req_body req)]) (* catch errors first *)
+    in
+      TextIO.output(TextIO.stdOut, html_response_header);
+      TextIO.output(TextIO.stdOut, result)
+    end
 
 end
 
