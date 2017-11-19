@@ -305,6 +305,7 @@ in
                false)
           end
       val success = loop skip
+      val () = OS.FileSys.chDir root
       val () =
         if success then
           let in
@@ -313,7 +314,6 @@ in
             API.post (Stop id)
           end
         else ()
-      val () = OS.FileSys.chDir root
     in
       success
     end
