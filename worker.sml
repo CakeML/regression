@@ -200,7 +200,7 @@ fun prepare_hol sha =
     val () =
       if reuse then diag ["Reusing HOL working directory built at same commit"]
       else let
-        val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,HOLDIR_git),HOLDIR])
+        val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,HOLDIR_git)," ",HOLDIR])
         val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of HOL"]
       in
         OS.FileSys.chDir HOLDIR;
@@ -214,7 +214,7 @@ fun prepare_hol sha =
 
 fun prepare_cakeml x =
   let
-    val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,CAKEMLDIR_git),CAKEMLDIR])
+    val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,CAKEMLDIR_git)," ",CAKEMLDIR])
     val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of CakeML"]
     val () = OS.FileSys.chDir CAKEMLDIR
     val _ =
