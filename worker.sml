@@ -2,7 +2,11 @@
   Worker that claims and runs regression test jobs.
 
   Assumes the following are available:
-    /usr/bin/curl, /usr/bin/git, /usr/bin/time, poly
+    /usr/bin/curl
+    /usr/bin/git
+    /usr/bin/time
+    /usr/bin/cp
+    poly
 
   Also assumes the default shell (/bin/sh) understands
     [var=val] cmd [args ...] >file 2>&1
@@ -42,23 +46,22 @@ fun usage_string name = String.concat[
     uname -norm > name
   It must not start with whitespace nor contain any single quotes.
 
-  Manipulates working directories for HOL and CakeML, which are created if
-  necessary. If a job can reuse the HOL working directory without rebuilding
-  (the commit has not changed), then it will be reused. Otherwise, it is
-  cleaned ("git clean -xdf") and rebuilt. The CakeML working directory is
-  cleaned before every job.
+  Uses bare clones of HOL and CakeML, which are created if necessary, and
+  creates a working directory of each of these repositories for each job. If a
+  job can reuse a HOL working directory without rebuilding (the commit has not
+  changed), then it will be copied and reused.
 
   Jobs are handled as follows:
     1. Find a job in the waiting queue
     2. Claim the job
-    3. Set up HOL and CakeML working directories
-       according to the job snapshot
+    3. Set up HOL working directory according to the job snapshot
     4. Build HOL, capturing stdout and stderr
        On failure:
          1. Append "FAILED: building HOL"
          2. Log the captured output
          3. Stop the job
-    5. For each directory in the CakeML build sequence
+    5. Set up cakeml working directory according to the job snapshot
+    6. For each directory in the CakeML build sequence
        1. Append "Starting <dir>"
        2. Holmake in that directory,
             capturing stdout and stderr,
@@ -68,8 +71,8 @@ fun usage_string name = String.concat[
             2. Log the captured output
             3. Stop the job
        3. Append "Finished <dir>: <time> <memory>"
-    6. Append "SUCCESS"
-    7. Stop the job
+    7. Append "SUCCESS"
+    8. Stop the job
 *)
 
 fun warn ls = (
@@ -135,12 +138,14 @@ val hol_remote = "https://github.com/HOL-Theorem-Prover/HOL.git"
 val CAKEMLDIR = "cakeml"
 val cakeml_remote = "https://github.com/CakeML/cakeml.git"
 
+val HOLDIR_git = String.concat[HOLDIR,".git"]
+val CAKEMLDIR_git = String.concat[CAKEMLDIR,".git"]
+
 val artefact_paths = [
   "compiler/bootstrap/compilation/x64/cake-x64.tar.gz",
   "compiler/bootstrap/compilation/riscv/cake-riscv.tar.gz" ]
 
 val git_path = "/usr/bin/git"
-val git_clean = (git_path,["clean","-d","--force","-x"])
 fun git_reset sha = (git_path,["reset","--hard","--quiet",sha])
 val git_fetch = (git_path,["fetch","origin"])
 fun git_sha_of head = (git_path,["rev-parse","--verify",head])
@@ -150,7 +155,7 @@ val git_merge_head = git_sha_of "MERGE_HEAD"
 local
   open OS.FileSys
 in
-  fun ensure_clone_exists remote options dir =
+  fun ensure_bare_clone_exists remote options dir =
     if access (dir,[]) then
       if isDir dir then
         let
@@ -164,22 +169,26 @@ in
     else
       let
         val () = diag [dir," does not exist: will clone"]
-        val status = OS.Process.system (String.concat[git_path," clone ",options,remote," ",dir])
+        val status = OS.Process.system (String.concat[git_path," clone --bare --no-tags ",options,remote," ",dir])
       in
         assert (OS.Process.isSuccess status) ["git clone failed for ",dir]
       end
+  fun update_bare_clone dir =
+    let in
+      chDir dir;
+      system_output git_fetch;
+      chDir OS.Path.parentArc
+    end
 end
-
-fun ensure_hol_exists () = ensure_clone_exists hol_remote "--single-branch " HOLDIR
-fun ensure_cakeml_exists () = ensure_clone_exists cakeml_remote "" CAKEMLDIR
 
 fun link_poly_includes () =
   let
     val includes_file = "poly-includes.ML"
-    val f = OS.Path.concat(OS.Path.parentArc,includes_file)
+    fun up p = OS.Path.concat(OS.Path.parentArc,p)
+    val f = up(up includes_file)
   in
     if OS.FileSys.access(f,[OS.FileSys.A_READ]) then
-      Posix.FileSys.symlink { old = OS.Path.concat(OS.Path.parentArc,f),
+      Posix.FileSys.symlink { old = up f,
                               new = OS.Path.concat("tools-poly",includes_file) }
       before diag ["Linking to custom ",includes_file]
     else ()
@@ -187,35 +196,33 @@ fun link_poly_includes () =
 
 fun prepare_hol sha =
   let
-    val () = ensure_hol_exists ()
-    val () = OS.FileSys.chDir HOLDIR
-    val () = ignore (system_output git_fetch)
-    val output = system_output git_head
-    val reuse = String.isPrefix sha output andalso
-                OS.FileSys.access("bin/build",[OS.FileSys.A_EXEC])
+    val reuse = false (* TODO: attempt to reuse a previous working copy *)
     val () =
-      if reuse
-      then diag ["Reusing HOL working directory built at same commit"]
-      else (system_output (git_reset sha);
-            system_output git_clean;
-            link_poly_includes ())
-    val () = OS.FileSys.chDir OS.Path.parentArc
+      if reuse then diag ["Reusing HOL working directory built at same commit"]
+      else let
+        val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,HOLDIR_git),HOLDIR])
+        val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of HOL"]
+      in
+        OS.FileSys.chDir HOLDIR;
+        system_output (git_reset sha);
+        link_poly_includes ();
+        OS.FileSys.chDir OS.Path.parentArc
+      end
   in
     reuse
   end
 
 fun prepare_cakeml x =
   let
-    val () = ensure_cakeml_exists ()
+    val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,CAKEMLDIR_git),CAKEMLDIR])
+    val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of CakeML"]
     val () = OS.FileSys.chDir CAKEMLDIR
-    val _ = system_output git_fetch
     val _ =
       case x of
         Bbr sha => system_output (git_reset sha)
       | Bpr {head_sha, base_sha} =>
           (system_output (git_reset base_sha);
            system_output (git_path,["merge","--no-commit","--quiet",head_sha]))
-    val _ = system_output git_clean
   in
     OS.FileSys.chDir OS.Path.parentArc
   end
@@ -323,11 +330,13 @@ fun validate_resume jid bhol bcml =
   let
     val () = diag ["Checking HOL for resuming job ",jid]
     val () = OS.FileSys.chDir HOLDIR
+             handle e as OS.SysErr _ => die ["Could not enter ",HOLDIR,"\n",exnMessage e]
     val head = system_output git_head
     val () = assert (String.isPrefix bhol head) ["Wrong HOL commit: wanted ",bhol,", at ",head]
     val () = OS.FileSys.chDir OS.Path.parentArc
     val () = diag ["Checking CakeML for resuming job ",jid]
     val () = OS.FileSys.chDir CAKEMLDIR
+             handle e as OS.SysErr _ => die ["Could not enter ",CAKEMLDIR,"\n",exnMessage e]
     val () =
       case bcml of
         Bbr sha => assert (String.isPrefix sha (system_output git_head)) ["Wrong CakeML commit: wanted ",sha]
@@ -351,23 +360,32 @@ fun work resumed id =
       val {bcml,bhol} = read_bare_snapshot inp
                         handle Option => die["Job ",jid," returned invalid response"]
       val () = TextIO.closeIn inp
+      val () = if resumed then ()
+               else OS.FileSys.mkDir jid
+                    handle e as OS.SysErr _ => die["Could not make directory ",jid,"\n",exnMessage e]
+      val () = update_bare_clone HOLDIR_git
+      val () = update_bare_clone CAKEMLDIR_git
+      val () = OS.FileSys.chDir jid
+               handle e as OS.SysErr _ => die["Could not enter directory ",jid,"\n",exnMessage e]
       val built_hol =
         if resumed then validate_resume jid bhol bcml
         else let
           val () = diag ["Preparing HOL for job ",jid]
           val reused = prepare_hol bhol
-          val () = diag ["Preparing CakeML for job ",jid]
-          val () = prepare_cakeml bcml
           val () = diag ["Building HOL for job ",jid]
           val () = API.post (Append(id,"Building HOL"))
+          val built_hol = build_hol reused id
         in
-          build_hol reused id
+          diag ["Preparing CakeML for job ",jid];
+          prepare_cakeml bcml;
+          built_hol
         end
       val is_master = case bcml of Bbr _ => true | _ => false
     in
-      built_hol andalso
-      (diag ["Running regression for job ",jid];
-       run_regression resumed is_master id)
+      (built_hol andalso
+       (diag ["Running regression for job ",jid];
+        run_regression resumed is_master id))
+      before OS.FileSys.chDir OS.Path.parentArc
     end
   end
 
@@ -418,6 +436,8 @@ fun main () =
     val select = get_int_arg "--select" args
     val name = file_to_line "name"
                handle IO.Io _ => die["Could not determine worker name. Try uname -norm >name."]
+    val () = ensure_bare_clone_exists hol_remote "--single-branch " HOLDIR_git
+    val () = ensure_bare_clone_exists cakeml_remote "" CAKEMLDIR_git
     fun loop resume =
       let
         val waiting_ids =
