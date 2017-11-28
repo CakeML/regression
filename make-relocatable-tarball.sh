@@ -1,12 +1,11 @@
 #!/bin/sh
 set -e
-pushd $1
-NAME=cakeml-job-$1
-tar --create --file ${NAME}.tar --exclude-from=HOL/tools-poly/rebuild-excludes.txt --exclude=HOL/help/Docfiles --exclude=HOL/help/theorygraph --transform="s|^|${NAME}/|" HOL
-tar --append --file ${NAME}.tar --exclude-from=cakeml/developers/rebuild-excludes --transform="s|^|${NAME}/|" cakeml
+NAME=cakeml-$1
+HOLDIR=$(cat ${NAME}/HOLDIR)
+tar --create --file ${NAME}.tar --exclude-from="${HOLDIR}/tools-poly/rebuild-excludes.txt" --exclude="${HOLDIR}/help/Docfiles" --exclude="${HOLDIR}/help/theorygraph" --transform="s|^${HOLDIR}|${NAME}/HOL|r" ${HOLDIR}
+tar --append --file ${NAME}.tar --exclude-from="${NAME}/developers/rebuild-excludes" --transform="s|^${NAME}|${NAME}/cakeml|r" ${NAME}
 gzip ${NAME}.tar
 rsync -Pvz ${NAME}.tar.gz xrchz@xrchz.strongspace.com:/strongspace/xrchz/public/
-popd
 
 # Developer Recipe
 #
@@ -14,8 +13,9 @@ popd
 # 2.  untar working directories in fresh locations
 # 3.  rebuild
 #     -   HOL will require
-#         1. poly < tools/smart-configure.sml
-#         2. bin/build --relocbuild
+#         1. poly --script tools/smart-configure.sml
+#         2. bin/build --relocbuild --nograph
 #     -   CakeML
 #         1. cd cakeml/`cat cakeml/resume`
-#         2. Holmake --qof -k --relocbuild
+#         2. fix Lem stuff: remove addancs dependencies in semantics/Holmakefile
+#         3. /path/to/the/above/HOL/bin/Holmake --relocbuild

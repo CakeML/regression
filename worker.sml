@@ -5,7 +5,6 @@
     /usr/bin/curl
     /usr/bin/git
     /usr/bin/time
-    /usr/bin/cp
     poly
 
   Also assumes the default shell (/bin/sh) understands
@@ -46,16 +45,20 @@ fun usage_string name = String.concat[
     uname -norm > name
   It must not start with whitespace nor contain any single quotes.
 
-  Uses bare clones of HOL and CakeML, which are created if necessary, and
-  creates a working directory of each of these repositories for each job. If a
-  job can reuse a HOL working directory without rebuilding (the commit has not
-  changed), then it will be copied and reused.
+  Uses bare clones of HOL and CakeML, which are created if necessary.
+
+  For each HOL commit, there is a HOL working directory: HOL-<sha>.
+  This directory is assumed to be built if it exists; it is built when created.
+  If building HOL fails, its working directory needs to be manually deleted (we
+  keep it around for diagnostics).
+
+  For each job, there is a CakeML working directory: cakeml-<jid>.
 
   Jobs are handled as follows:
     1. Find a job in the waiting queue
     2. Claim the job
     3. Set up HOL working directory according to the job snapshot
-    4. Build HOL, capturing stdout and stderr
+    4. Build HOL if necessary, capturing stdout and stderr
        On failure:
          1. Append "FAILED: building HOL"
          2. Log the captured output
@@ -133,13 +136,14 @@ structure API = struct
     end
 end
 
-val HOLDIR = "HOL"
 val hol_remote = "https://github.com/HOL-Theorem-Prover/HOL.git"
-val CAKEMLDIR = "cakeml"
 val cakeml_remote = "https://github.com/CakeML/cakeml.git"
 
-val HOLDIR_git = String.concat[HOLDIR,".git"]
-val CAKEMLDIR_git = String.concat[CAKEMLDIR,".git"]
+val HOLDIR_git = "HOL.git"
+val CAKEMLDIR_git = "cakeml.git"
+
+fun mk_HOLDIR sha = String.concat["HOL-",sha]
+fun mk_CAKEMLDIR jid = String.concat["cakeml-",jid]
 
 val artefact_paths = [
   "compiler/bootstrap/compilation/x64/cake-x64.tar.gz",
@@ -184,8 +188,7 @@ end
 fun link_poly_includes () =
   let
     val includes_file = "poly-includes.ML"
-    fun up p = OS.Path.concat(OS.Path.parentArc,p)
-    val f = up(up includes_file)
+    val f = up includes_file
   in
     if OS.FileSys.access(f,[OS.FileSys.A_READ]) then
       Posix.FileSys.symlink { old = up f,
@@ -194,25 +197,24 @@ fun link_poly_includes () =
     else ()
   end
 
-fun prepare_hol sha =
-  let
-    val reuse = false (* TODO: attempt to reuse a previous working copy *)
-    val () =
-      if reuse then diag ["Reusing HOL working directory built at same commit"]
-      else let
-        val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,HOLDIR_git)," ",HOLDIR])
-        val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of HOL"]
-      in
-        OS.FileSys.chDir HOLDIR;
-        system_output (git_reset sha);
-        link_poly_includes ();
-        OS.FileSys.chDir OS.Path.parentArc
-      end
-  in
-    reuse
-  end
+fun prepare_hol HOLDIR sha =
+  if OS.FileSys.access(HOLDIR,[]) then
+    if OS.FileSys.access(OS.Path.concat(HOLDIR,OS.Path.concat("bin","build")),[OS.FileSys.A_EXEC]) then
+      (diag ["Reusing HOL working directory at same commit"]; true)
+    else die [HOLDIR, " exists but does not contain executable bin/build"]
+  else
+    let
+      val status = OS.Process.system (String.concat[git_path," clone --shared ",HOLDIR_git," ",HOLDIR])
+    in
+      assert (OS.Process.isSuccess status) ["Failed to create working copy of HOL"];
+      OS.FileSys.chDir HOLDIR;
+      system_output (git_reset sha);
+      link_poly_includes ();
+      OS.FileSys.chDir OS.Path.parentArc;
+      false
+    end
 
-fun prepare_cakeml x =
+fun prepare_cakeml HOLDIR CAKEMLDIR x =
   let
     val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,CAKEMLDIR_git)," ",CAKEMLDIR])
     val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of CakeML"]
@@ -223,6 +225,7 @@ fun prepare_cakeml x =
       | Bpr {head_sha, base_sha} =>
           (system_output (git_reset base_sha);
            system_output (git_path,["merge","--no-commit","--quiet",head_sha]))
+    val () = output_to_file ("HOLDIR", HOLDIR)
   in
     OS.FileSys.chDir OS.Path.parentArc
   end
@@ -230,7 +233,7 @@ fun prepare_cakeml x =
 local
   val configure_hol = "poly --script tools/smart-configure.sml"
 in
-  fun build_hol reused id =
+  fun build_hol HOLDIR reused id =
     let
       val () = OS.FileSys.chDir HOLDIR
       val configured =
@@ -247,7 +250,7 @@ in
     end
 end
 
-fun upload id f =
+fun upload CAKEMLDIR id f =
   let
     val p = OS.Path.concat(CAKEMLDIR,f)
   in
@@ -267,7 +270,7 @@ local
     in CharVector.tabulate(n,(fn _ => #" ")) end
   val no_skip = ((fn _ => false), "Starting ")
 in
-  fun run_regression resumed is_master id =
+  fun run_regression HOLDIR CAKEMLDIR resumed is_master id =
     let
       val root = OS.FileSys.getDir()
       val holdir = OS.Path.concat(root,HOLDIR)
@@ -317,7 +320,7 @@ in
         if success then
           let in
             API.post (Append(id,"SUCCESS"));
-            if is_master then List.app (upload id) artefact_paths else ();
+            if is_master then List.app (upload CAKEMLDIR id) artefact_paths else ();
             API.post (Stop id)
           end
         else ()
@@ -329,12 +332,14 @@ end
 fun validate_resume jid bhol bcml =
   let
     val () = diag ["Checking HOL for resuming job ",jid]
+    val HOLDIR = mk_HOLDIR bhol
     val () = OS.FileSys.chDir HOLDIR
              handle e as OS.SysErr _ => die ["Could not enter ",HOLDIR,"\n",exnMessage e]
     val head = system_output git_head
     val () = assert (String.isPrefix bhol head) ["Wrong HOL commit: wanted ",bhol,", at ",head]
     val () = OS.FileSys.chDir OS.Path.parentArc
     val () = diag ["Checking CakeML for resuming job ",jid]
+    val CAKEMLDIR = mk_CAKEMLDIR jid
     val () = OS.FileSys.chDir CAKEMLDIR
              handle e as OS.SysErr _ => die ["Could not enter ",CAKEMLDIR,"\n",exnMessage e]
     val () =
@@ -360,32 +365,29 @@ fun work resumed id =
       val {bcml,bhol} = read_bare_snapshot inp
                         handle Option => die["Job ",jid," returned invalid response"]
       val () = TextIO.closeIn inp
-      val () = if resumed then ()
-               else OS.FileSys.mkDir jid
-                    handle e as OS.SysErr _ => die["Could not make directory ",jid,"\n",exnMessage e]
       val () = update_bare_clone HOLDIR_git
       val () = update_bare_clone CAKEMLDIR_git
-      val () = OS.FileSys.chDir jid
-               handle e as OS.SysErr _ => die["Could not enter directory ",jid,"\n",exnMessage e]
+      val HOLDIR = mk_HOLDIR bhol
+      val CAKEMLDIR = mk_CAKEMLDIR jid
       val built_hol =
         if resumed then validate_resume jid bhol bcml
         else let
           val () = diag ["Preparing HOL for job ",jid]
-          val reused = prepare_hol bhol
-          val () = diag ["Building HOL for job ",jid]
-          val () = API.post (Append(id,"Building HOL"))
-          val built_hol = build_hol reused id
+          val reused = prepare_hol HOLDIR bhol
+          val s = if reused then "Reusing" else "Building"
+          val () = diag [s," HOL for job ",jid]
+          val () = API.post (Append(id,String.concat[s," HOL"]))
+          val built_hol = build_hol HOLDIR reused id
         in
           diag ["Preparing CakeML for job ",jid];
-          prepare_cakeml bcml;
+          prepare_cakeml HOLDIR CAKEMLDIR bcml;
           built_hol
         end
       val is_master = case bcml of Bbr _ => true | _ => false
     in
-      (built_hol andalso
-       (diag ["Running regression for job ",jid];
-        run_regression resumed is_master id))
-      before OS.FileSys.chDir OS.Path.parentArc
+      built_hol andalso
+      (diag ["Running regression for job ",jid];
+       run_regression HOLDIR CAKEMLDIR resumed is_master id)
     end
   end
 
@@ -425,9 +427,9 @@ fun main () =
                  diag ["Marking job ",Int.toString id," as aborted."];
                  API.post (Abort id); OS.Process.exit OS.Process.success)
     val () = case get_int_arg "--upload" args of NONE => ()
-             | SOME id => let in
-                 diag ["Uploading artefacts for job ",Int.toString id,"."];
-                 List.app (upload id) artefact_paths;
+             | SOME id => let val jid = Int.toString id in
+                 diag ["Uploading artefacts for job ",jid,"."];
+                 List.app (upload (mk_CAKEMLDIR jid) id) artefact_paths;
                  OS.Process.exit OS.Process.success
                end
     val no_wait = List.exists (equal"--no-wait") args

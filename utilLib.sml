@@ -44,6 +44,8 @@ structure utilLib = struct
 
   val curl_path = "/usr/bin/curl"
 
+  fun up p = OS.Path.concat(OS.Path.parentArc,p)
+
   fun trimr s =
     Substring.string(Substring.dropr Char.isSpace (Substring.full s))
 
