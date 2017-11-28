@@ -199,9 +199,8 @@ fun link_poly_includes () =
 
 fun prepare_hol HOLDIR sha =
   if OS.FileSys.access(HOLDIR,[]) then
-    if OS.FileSys.access(OS.Path.concat(HOLDIR,OS.Path.concat("bin","build")),[OS.FileSys.A_EXEC]) then
-      (diag ["Reusing HOL working directory at same commit"]; true)
-    else die [HOLDIR, " exists but does not contain executable bin/build"]
+    OS.FileSys.access(OS.Path.concat(HOLDIR,OS.Path.concat("bin","build")),[OS.FileSys.A_EXEC])
+    orelse die [HOLDIR, " exists but does not contain executable bin/build"]
   else
     let
       val status = OS.Process.system (String.concat[git_path," clone --shared ",HOLDIR_git," ",HOLDIR])
