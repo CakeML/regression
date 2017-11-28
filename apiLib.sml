@@ -302,6 +302,10 @@ fun read_total_time dir inp =
 val max_dir_length = 50
 
 datatype status = Pending | Success | Failure | Aborted
+fun status_to_string Pending = "Pending"
+  | status_to_string Success = "Success"
+  | status_to_string Failure = "Failure"
+  | status_to_string Aborted = "Aborted"
 
 fun read_status inp =
   let

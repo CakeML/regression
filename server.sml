@@ -120,11 +120,13 @@ fun stop id =
     val inp = TextIO.openIn new
     val sha = get_head_sha (read_bare_snapshot inp)
     val status = read_status inp
+    val inp = (TextIO.closeIn inp; TextIO.openIn new)
+    val typ = read_job_type inp
   in
     TextIO.closeIn inp;
     Posix.IO.close fd;
     GitHub.set_status f sha status;
-    send_email (String.concat["Job ",f,": ",#2 (GitHub.status status)])
+    send_email (String.concat[status_to_string status,": Job ",f," (",typ,")"])
                (String.concat["See ",server,"/job/",f,"\n"]);
     ()
   end
