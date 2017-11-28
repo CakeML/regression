@@ -216,7 +216,7 @@ fun prepare_hol HOLDIR sha =
 
 fun prepare_cakeml HOLDIR CAKEMLDIR x =
   let
-    val status = OS.Process.system (String.concat[git_path," clone --shared ",OS.Path.concat(OS.Path.parentArc,CAKEMLDIR_git)," ",CAKEMLDIR])
+    val status = OS.Process.system (String.concat[git_path," clone --shared ",CAKEMLDIR_git," ",CAKEMLDIR])
     val () = assert (OS.Process.isSuccess status) ["Failed to create working copy of CakeML"]
     val () = OS.FileSys.chDir CAKEMLDIR
     val _ =
