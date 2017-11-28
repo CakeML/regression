@@ -173,7 +173,7 @@ in
     else
       let
         val () = diag [dir," does not exist: will clone"]
-        val status = OS.Process.system (String.concat[git_path," clone --bare --no-tags ",options,remote," ",dir])
+        val status = OS.Process.system (String.concat[git_path," clone --bare ",options,remote," ",dir])
       in
         assert (OS.Process.isSuccess status) ["git clone failed for ",dir]
       end
