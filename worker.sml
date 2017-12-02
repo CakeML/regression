@@ -151,7 +151,7 @@ val artefact_paths = [
 
 val git_path = "/usr/bin/git"
 fun git_reset sha = (git_path,["reset","--hard","--quiet",sha])
-val git_fetch = (git_path,["fetch","origin"])
+val git_fetch = (git_path,["fetch","origin","+refs/heads/*:refs/heads/*"])
 fun git_sha_of head = (git_path,["rev-parse","--verify",head])
 val git_head = git_sha_of "HEAD"
 val git_merge_head = git_sha_of "MERGE_HEAD"
