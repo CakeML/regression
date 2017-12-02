@@ -223,7 +223,7 @@ fun prepare_cakeml HOLDIR CAKEMLDIR x =
         Bbr sha => system_output (git_reset sha)
       | Bpr {head_sha, base_sha} =>
           (system_output (git_reset base_sha);
-           system_output (git_path,["merge","--no-commit","--quiet",head_sha]))
+           system_output (git_path,["merge","--no-commit","--no-ff","--quiet",head_sha]))
     val () = output_to_file ("HOLDIR", HOLDIR)
   in
     OS.FileSys.chDir OS.Path.parentArc
