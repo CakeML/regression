@@ -151,7 +151,8 @@ val artefact_paths = [
 
 val git_path = "/usr/bin/git"
 fun git_reset sha = (git_path,["reset","--hard","--quiet",sha])
-val git_fetch = (git_path,["fetch","--prune","origin","+refs/heads/*:refs/heads/*"])
+val git_fetch = (git_path,["fetch","origin"])
+val git_fetch_all = (git_path,["fetch","--prune","origin","+refs/heads/*:refs/heads/*"])
 fun git_sha_of head = (git_path,["rev-parse","--verify",head])
 val git_head = git_sha_of "HEAD"
 val git_merge_head = git_sha_of "MERGE_HEAD"
@@ -177,10 +178,10 @@ in
       in
         assert (OS.Process.isSuccess status) ["git clone failed for ",dir]
       end
-  fun update_bare_clone dir =
+  fun update_bare_clone fetch dir =
     let in
       chDir dir;
-      system_output git_fetch;
+      system_output fetch;
       chDir OS.Path.parentArc
     end
 end
@@ -364,8 +365,8 @@ fun work resumed id =
       val {bcml,bhol} = read_bare_snapshot inp
                         handle Option => die["Job ",jid," returned invalid response"]
       val () = TextIO.closeIn inp
-      val () = update_bare_clone HOLDIR_git
-      val () = update_bare_clone CAKEMLDIR_git
+      val () = update_bare_clone git_fetch HOLDIR_git
+      val () = update_bare_clone git_fetch_all CAKEMLDIR_git
       val HOLDIR = mk_HOLDIR bhol
       val CAKEMLDIR = mk_CAKEMLDIR jid
       val built_hol =
