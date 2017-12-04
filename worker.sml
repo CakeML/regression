@@ -145,9 +145,7 @@ val CAKEMLDIR_git = "cakeml.git"
 fun mk_HOLDIR sha = String.concat["HOL-",sha]
 fun mk_CAKEMLDIR jid = String.concat["cakeml-",jid]
 
-val artefact_paths = [
-  "compiler/bootstrap/compilation/x64/cake-x64.tar.gz",
-  "compiler/bootstrap/compilation/riscv/cake-riscv.tar.gz" ]
+val artefacts_file = OS.Path.concat("developers","artefacts")
 
 val git_path = "/usr/bin/git"
 fun git_reset sha = (git_path,["reset","--hard","--quiet",sha])
@@ -259,6 +257,19 @@ fun upload CAKEMLDIR id f =
     else warn ["Could not find ",p," to upload."]
   end
 
+fun upload_artefacts CAKEMLDIR id =
+  let
+    val f = OS.Path.concat(CAKEMLDIR,artefacts_file)
+  in
+    let
+      val inp = TextIO.openIn f
+      fun loop () =
+        case TextIO.inputLine inp of NONE => TextIO.closeIn inp
+        | SOME line => (upload CAKEMLDIR id (trimr line); loop ())
+    in loop () end
+    handle e as OS.SysErr _ => warn ["Could not find artefacts list ",f,"\n",exnMessage e]
+  end
+
 local
   val resume_file = "resume"
   val time_options = String.concat["--format='%e %M' --output='",timing_file,"'"]
@@ -320,7 +331,7 @@ in
         if success then
           let in
             API.post (Append(id,"SUCCESS"));
-            if is_master then List.app (upload CAKEMLDIR id) artefact_paths else ();
+            if is_master then upload_artefacts CAKEMLDIR id else ();
             API.post (Stop id)
           end
         else ()
@@ -429,7 +440,7 @@ fun main () =
     val () = case get_int_arg "--upload" args of NONE => ()
              | SOME id => let val jid = Int.toString id in
                  diag ["Uploading artefacts for job ",jid,"."];
-                 List.app (upload (mk_CAKEMLDIR jid) id) artefact_paths;
+                 upload_artefacts (mk_CAKEMLDIR jid) id;
                  OS.Process.exit OS.Process.success
                end
     val no_wait = List.exists (equal"--no-wait") args
