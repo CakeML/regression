@@ -1,3 +1,8 @@
+TODO: Support pull requests from different repositories
+  The current worker will create a repository with only one remote; it needs to
+  do something to fetch other remotes if there are pull requests from other
+  remotes.
+
 TODO: Add an option for cleaning away old directories (possibly do this by default?)?
   This could be done on the basis of their age
 
