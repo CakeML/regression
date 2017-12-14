@@ -3,7 +3,7 @@ TODO: Support pull requests from different repositories
   do something to fetch other remotes if there are pull requests from other
   remotes.
 
-TODO: Wait after the refresh API is hit before querying for changes on GitHub.
+TODO (DONE): Wait after the refresh API is hit before querying for changes on GitHub.
   It seems like it takes a while (probably ~1min is fine) for mergable pull
   requests to show up. (Or investigate why this is happening.) Note: the API
   must return an HTTP response quickly, even though the main refresh action is
