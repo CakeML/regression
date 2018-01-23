@@ -29,6 +29,7 @@ fun usage_string name = String.concat[
   "                exit (even without --no-loop).\n",
   "  --upload id : Assume this worker has just finished job <id> and upload its build\n",
   "                artefacts (usually automatic after master succeeds), then exit.\n",
+  "  --stop id   : Stop job <id>, then exit.\n",
   "  --abort id  : Mark job <id> as having aborted, i.e., stopped without a proper\n",
   "                success or failure, then exit.\n",
   "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
@@ -437,6 +438,10 @@ fun main () =
              | SOME id => (
                  diag ["Marking job ",Int.toString id," as aborted."];
                  API.post (Abort id); OS.Process.exit OS.Process.success)
+    val () = case get_int_arg "--stop" args of NONE => ()
+             | SOME id => (
+                 diag ["Marking job ",Int.toString id," as stopped."];
+                 API.post (Stop id); OS.Process.exit OS.Process.success)
     val () = case get_int_arg "--upload" args of NONE => ()
              | SOME id => let val jid = Int.toString id in
                  diag ["Uploading artefacts for job ",jid,"."];
