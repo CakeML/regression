@@ -145,8 +145,11 @@ fun abort id =
     else cgi_die 409 ["job ",f," is not stopped: cannot abort"]
   end
 
+val refresh_delay_duration = Time.fromSeconds 30;
+
 fun refresh () =
   let
+    val _ = OS.Process.sleep refresh_delay_duration;
     val snapshots = get_current_snapshots ()
     val fd = acquire_lock ()
     val () = clear_list "waiting"
