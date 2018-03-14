@@ -310,13 +310,16 @@ in
           then loop skip else
           let
             val () = output_to_file (resume_file, line)
-            val dir = until_space line
+            val line_in = until_space line
+            val (dir, artefacts) = case String.tokens (fn c => c = #":") line_in of [] => ("", [])
+                                                                                  | x::y => (x, y)
             val () = API.post (Append(id, String.concat[#2 skip,dir]))
             val entered = (OS.FileSys.chDir dir; true)
                           handle e as OS.SysErr _ => (API.post (Append(id, exnMessage e)); false)
           in
             if entered andalso system_capture holmake_cmd then
-              (API.post (Append(id,
+              (map ((upload CAKEMLDIR id) o trimr) artefacts;
+               API.post (Append(id,
                  String.concat["Finished ",dir,pad dir,file_to_line timing_file]));
                OS.FileSys.chDir cakemldir;
                loop no_skip)
