@@ -249,14 +249,10 @@ in
     end
 end
 
-fun upload CAKEMLDIR id f =
-  let
-    val p = OS.Path.concat(CAKEMLDIR,f)
-  in
-    if OS.FileSys.access(p,[])
-    then API.post (Upload(id,p,0))
-    else warn ["Could not find ",p," to upload."]
-  end
+fun upload id p =
+  if OS.FileSys.access(p,[])
+  then API.post (Upload(id,p,0))
+  else warn ["Could not find ",p," to upload."]
 
 fun upload_artefacts CAKEMLDIR id =
   let
@@ -266,7 +262,7 @@ fun upload_artefacts CAKEMLDIR id =
       val inp = TextIO.openIn f
       fun loop () =
         case TextIO.inputLine inp of NONE => TextIO.closeIn inp
-        | SOME line => (upload CAKEMLDIR id (trimr line); loop ())
+        | SOME line => (upload id (OS.Path.concat(CAKEMLDIR, trimr line)); loop ())
     in loop () end
     handle e as OS.SysErr _ => warn ["Could not find artefacts list ",f,"\n",exnMessage e]
   end
@@ -318,7 +314,7 @@ in
                           handle e as OS.SysErr _ => (API.post (Append(id, exnMessage e)); false)
           in
             if entered andalso system_capture holmake_cmd then
-              (map ((upload CAKEMLDIR id) o trimr) artefacts;
+              (map ((upload id) o trimr) artefacts;
                API.post (Append(id,
                  String.concat["Finished ",dir,pad dir,file_to_line timing_file]));
                OS.FileSys.chDir cakemldir;
