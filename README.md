@@ -19,3 +19,6 @@ Small library of useful code.
 
 [worker.sml](worker.sml):
 Worker that claims and runs regression test jobs.
+
+[Dockerfile](Dockerfile):
+Worker docker container for easy deployment `docker run -d agomezl/oven`.
