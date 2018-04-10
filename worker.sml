@@ -314,7 +314,7 @@ in
                           handle e as OS.SysErr _ => (API.post (Append(id, exnMessage e)); false)
           in
             if entered andalso system_capture holmake_cmd then
-              (if is_master then map ((upload id) o trimr) artefacts else [];
+              (if is_master then app ((upload id) o trimr) artefacts else ();
                API.post (Append(id,
                  String.concat["Finished ",dir,pad dir,file_to_line timing_file]));
                OS.FileSys.chDir cakemldir;
