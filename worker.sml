@@ -120,7 +120,7 @@ val system_capture_append = system_capture_with " >>"
 
 structure API = struct
   val endpoint = String.concat[server,"/api"]
-  val std_options = ["--silent","--show-error","--header",String.concat["Authorization: Bearer ",cakeml_token]]
+  val std_options = ["--ipv4","--silent","--show-error","--header",String.concat["Authorization: Bearer ",cakeml_token]]
   fun curl_cmd api = (curl_path,
       std_options
     @ api_curl_args api
