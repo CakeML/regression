@@ -147,6 +147,7 @@ fun abort id =
 
 fun refresh () =
   let
+    val () = OS.Process.sleep (Time.fromSeconds 60)
     val snapshots = get_current_snapshots ()
     val fd = acquire_lock ()
     val () = clear_list "waiting"
@@ -205,7 +206,7 @@ in
       val () =
         case api of
           (G _) => ()
-        | (P Refresh) => refresh ()
+        | (P Refresh) => ignore (Thread.Thread.fork (refresh, []))
         | (P (Claim x)) => claim x
         | (P (Append x)) => append x
         | (P (Log x)) => log x
