@@ -16,6 +16,10 @@ structure utilLib = struct
       if x >= y then x::y::xs
       else y::(insert x xs)
 
+  fun pairList [] = []
+    | pairList [_] = raise Match
+    | pairList (x::y::ls) = (x,y)::(pairList ls)
+
   val until_space =
     Substring.string o Substring.takel (not o Char.isSpace) o Substring.full
 
@@ -32,6 +36,106 @@ structure utilLib = struct
     | month_from_int 11 = Date.Nov
     | month_from_int 12 = Date.Dec
     | month_from_int _ = raise Match
+
+  fun Word8_fromChar c = Word8.fromInt (Char.ord c)
+  fun Word8Vector_fromCharVector vec =
+    Word8Vector.tabulate(CharVector.length vec,
+      (fn i => Word8_fromChar (CharVector.sub(vec, i))))
+
+  fun Char_fromWord8 b = Char.chr (Word8.toInt b)
+  fun CharVector_fromWord8Vector vec =
+    CharVector.tabulate(Word8Vector.length vec,
+      (fn i => Char_fromWord8 (Word8Vector.sub(vec, i))))
+
+  fun scgi_format_env body =
+    let
+      val alist = pairList(String.fields (equal (Char.chr 0)) body)
+      val len = Option.valOf(Int.fromString(assoc "CONTENT_LENGTH" alist))
+      fun f (k,v) = String.concat[k, "=", v]
+    in
+      (List.map f alist, len)
+    end
+
+  exception SocketClosed
+
+  fun make_listener port =
+    let
+      val socket = INetSock.TCP.socket ()
+      val sock_addr = INetSock.any port
+      val () = Socket.bind (socket, sock_addr)
+      val () = Socket.listen (socket, 5)
+    in
+      socket
+    end
+
+  fun sendVec (socket, vec) =
+    let
+      fun loop slice =
+        if Word8VectorSlice.isEmpty slice then ()
+        else let
+          val sent = Socket.sendVec(socket, slice)
+          val slice = Word8VectorSlice.subslice(slice, sent, NONE)
+        in loop slice end
+    in loop (Word8VectorSlice.full vec) end
+
+  fun sendStr socket str = sendVec (socket, Word8Vector_fromCharVector str)
+
+  fun recvVecN (socket, n) =
+    let
+      val arr = Word8Array.array(n, 0wx0)
+      fun loop (slice, received) =
+        let
+          val more = Socket.recvArr(socket, slice)
+          val received = received + more
+        in
+          if more = 0 then raise SocketClosed
+          else if n <= received then Word8Array.vector arr
+          else loop (Word8ArraySlice.subslice(slice, received, NONE), received)
+        end
+    in
+      if n = 0 then Word8Array.vector arr
+      else loop (Word8ArraySlice.full arr, 0)
+    end
+
+  fun recvVecUntil (socket, f) =
+    let
+      fun loop (acc, i) =
+        let
+          val v = Socket.recvVec(socket, 1)
+        in
+          if Word8Vector.length v = 0 then raise SocketClosed
+          else if f (Word8Vector.sub(v, 0)) then
+            Word8ArraySlice.vector(Word8ArraySlice.slice(acc, 0, SOME i))
+          else
+            if i < Word8Array.length acc  then
+              (Word8Array.update(acc, i, Word8Vector.sub(v, 0));
+               loop (acc, i+1))
+            else
+              let
+                fun t j = if j < i then Word8Array.sub(acc, j)
+                          else if j = i then Word8Vector.sub(v, 0)
+                          else 0wx0
+              in
+                loop (Word8Array.tabulate(Word8Array.length acc * 2, t), i+1)
+              end
+        end
+    in
+      loop (Word8Array.array(1, 0wx0), 0)
+    end
+
+  fun recvNetstring socket =
+    let
+      val len = Option.valOf (
+                  Int.fromString(
+                    CharVector_fromWord8Vector(
+                      recvVecUntil (socket, equal (Word8_fromChar#":")))))
+      val str = CharVector_fromWord8Vector(
+                  recvVecN (socket, len))
+    in
+      str before
+        (if Word8Vector.sub(recvVecN (socket, 1), 0) = (Word8_fromChar#",")
+         then () else raise Fail "recvNetstring: no trailing comma")
+    end handle Option => raise Fail "recvNetstring: bad length"
 
   fun file_to_string f =
     let val inp = TextIO.openIn f in TextIO.inputAll inp before TextIO.closeIn inp end
