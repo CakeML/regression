@@ -145,22 +145,6 @@ fun abort id =
     else cgi_die 409 ["job ",f," is not stopped: cannot abort"]
   end
 
-fun refresh () =
-  let
-    val () = OS.Process.sleep (Time.fromSeconds 60)
-    val snapshots = get_current_snapshots ()
-    val fd = acquire_lock ()
-    val () = clear_list "waiting"
-    (* TODO: stop timed out jobs *)
-    val running_ids = running()
-    val stopped_ids = stopped()
-    val snapshots = filter_out (same_head "running") running_ids snapshots
-    val snapshots = filter_out (same_snapshot "stopped") stopped_ids snapshots
-    val avoid_ids = running_ids @ stopped_ids @ aborted()
-    val () = if List.null snapshots then ()
-             else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
-  in Posix.IO.close fd end
-
 datatype request = Api of api | Html of html_request
 
 fun check_auth auth ua =
@@ -206,7 +190,9 @@ in
       val () =
         case api of
           (G _) => ()
-        | (P Refresh) => ignore (Thread.Thread.fork (refresh, []))
+        | (P Refresh) =>
+            (case Posix.Process.fork () of SOME _ => () | NONE =>
+             Posix.Process.exec("refresh",["refresh","20","refresh-log.txt"]))
         | (P (Claim x)) => claim x
         | (P (Append x)) => append x
         | (P (Log x)) => log x
