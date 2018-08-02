@@ -85,7 +85,7 @@ fun log conn (id,_,len) =
     val out = TextIO.openAppend p
               handle e as IO.Io _ => (cgi_die conn 409 ["job ",f," is not running: cannot log"]; raise e)
   in
-    outputN_from_stdIn(out, len);
+    outputN_from_socket conn (out, len);
     TextIO.closeOut out;
     Posix.IO.close fd
   end
@@ -100,7 +100,7 @@ fun upload conn (id,name,len) =
     val () = cgi_assert conn (not(OS.FileSys.access(f,[]))) 409 ["artefact ",name," already exists for job ",jid]
     val out = TextIO.openOut f
   in
-    outputN_from_stdIn(out, len);
+    outputN_from_socket conn (out, len);
     TextIO.closeOut out
     (* TODO: update link on downloads page on CakeML main site? *)
   end
@@ -170,9 +170,9 @@ fun check_auth conn auth ua =
   then ()
   else cgi_die conn 401 ["Unauthorized: ", Option.valOf auth handle Option => "got nothing"]
 
-fun get_api conn =
-  case (OS.Process.getEnv "PATH_INFO",
-        OS.Process.getEnv "REQUEST_METHOD") of
+fun get_api conn getEnv =
+  case (getEnv "PATH_INFO",
+        getEnv "REQUEST_METHOD") of
     (NONE, SOME "GET") => SOME (Html Overview)
   | (SOME path_info, SOME "GET") =>
       if String.isPrefix "/api" path_info then
@@ -184,10 +184,10 @@ fun get_api conn =
   | (SOME path_info, SOME "POST") =>
     let
       val () = cgi_assert conn (String.isPrefix "/api" path_info) 400 [path_info," not found"]
-      val () = check_auth conn (OS.Process.getEnv "HTTP_AUTHORIZATION")
-                          (OS.Process.getEnv "HTTP_USER_AGENT")
+      val () = check_auth conn (getEnv "HTTP_AUTHORIZATION")
+                          (getEnv "HTTP_USER_AGENT")
       val len = Option.mapPartial Int.fromString
-                  (OS.Process.getEnv "CONTENT_LENGTH")
+                  (getEnv "CONTENT_LENGTH")
     in
       Option.map (Api o P)
         (post_from_string (String.extract(path_info,4,NONE)) len)
@@ -226,11 +226,11 @@ fun dispatch_req conn req =
     | (Html req) => html_response conn req
   end handle e => cgi_die conn 500 [exnMessage e]
 
-fun serve conn =
+fun serve conn getEnv =
   let
     val () = ensure_dirs conn
   in
-    case get_api conn of
+    case get_api conn getEnv of
       NONE => cgi_die conn 400 ["bad usage"]
     | SOME req => dispatch_req conn req
   end
@@ -244,9 +244,11 @@ fun main () =
     fun loop () =
       let
         val (connection, _) = Socket.accept listener
+        val environment = scgi_env (recvNetstring connection)
       in
-        serve connection;
+        serve connection environment;
         Socket.close connection;
         loop ()
       end
   in loop () end
+  handle e => (TextIO.output(TextIO.stdErr,String.concat["Exception: ",exnMessage e,"\n"]); raise e)

@@ -837,8 +837,8 @@ in
     let
       val result = html ([header,body (req_body conn req)]) (* catch errors first *)
     in
-      TextIO.output(TextIO.stdOut, html_response_header);
-      TextIO.output(TextIO.stdOut, result)
+      sendStr conn html_response_header;
+      sendStr conn result
     end
 
 end

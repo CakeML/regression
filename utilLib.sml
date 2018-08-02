@@ -11,14 +11,15 @@ structure utilLib = struct
   fun assoc k [] = raise Match
     | assoc k ((k',v)::ls) = if k = k' then v else assoc k ls
 
+  fun assoc_env env k = SOME (assoc k env) handle Match => NONE
+
   fun insert x [] = [x]
     | insert x (y::xs) =
       if x >= y then x::y::xs
       else y::(insert x xs)
 
-  fun pairList [] = []
-    | pairList [_] = raise Match
-    | pairList (x::y::ls) = (x,y)::(pairList ls)
+  fun pairList (x::y::ls) = (x,y)::(pairList ls)
+    | pairList _ = []
 
   val until_space =
     Substring.string o Substring.takel (not o Char.isSpace) o Substring.full
@@ -47,14 +48,8 @@ structure utilLib = struct
     CharVector.tabulate(Word8Vector.length vec,
       (fn i => Char_fromWord8 (Word8Vector.sub(vec, i))))
 
-  fun scgi_format_env body =
-    let
-      val alist = pairList(String.fields (equal (Char.chr 0)) body)
-      val len = Option.valOf(Int.fromString(assoc "CONTENT_LENGTH" alist))
-      fun f (k,v) = String.concat[k, "=", v]
-    in
-      (List.map f alist, len)
-    end
+  fun scgi_env body =
+    assoc_env (pairList(String.fields (equal (Char.chr 0)) body))
 
   exception SocketClosed
 
@@ -186,14 +181,14 @@ structure utilLib = struct
   local
     val chunk_size = 65536
   in
-    fun outputN_from_stdIn (out,len) =
+    fun outputN_from_socket conn (out,len) =
       let
         fun loop len =
           if chunk_size < len then
-            (TextIO.output(out,TextIO.inputN(TextIO.stdIn,chunk_size));
+            (TextIO.output(out,CharVector_fromWord8Vector(recvVecN(conn,chunk_size)));
              loop (len - chunk_size))
           else
-            TextIO.output(out,TextIO.inputN(TextIO.stdIn,len))
+            TextIO.output(out,CharVector_fromWord8Vector(recvVecN(conn,len)))
       in loop len end
   end
 
