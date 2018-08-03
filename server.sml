@@ -241,14 +241,29 @@ fun main () =
     val port = Option.valOf (Int.fromString (List.hd args))
                handle Empty => 5000 | Option => 5000
     val listener = make_listener port
-    fun loop () =
-      let
-        val (connection, _) = Socket.accept listener
-        val environment = scgi_env (recvNetstring connection)
-      in
-        serve connection environment;
-        Socket.close connection;
-        loop ()
-      end
-  in loop () end
-  handle e => (TextIO.output(TextIO.stdErr,String.concat["Exception: ",exnMessage e,"\n"]); raise e)
+    fun loop (n, reqs) =
+      if n > 8 then
+        let
+          val (pid, status) = Posix.Process.wait ()
+          val (found, rest) = List.partition (equal pid) reqs
+        in
+          loop (n - List.length found, rest)
+        end
+      else
+        let
+          val (connection, _) = Socket.accept listener
+          val environment = scgi_env (recvNetstring connection)
+        in
+          case Posix.Process.fork () of
+            NONE => (
+              Socket.close listener;
+              serve connection environment;
+              Socket.close connection
+            )
+          | SOME pid => (
+              Socket.close connection;
+              loop (n+1, pid::reqs)
+            )
+        end
+  in loop (0, []) end
+  handle e => (TextIO.output(TextIO.stdErr, String.concat["Exception: ", exnMessage e, "\n"]); raise e)
