@@ -1,5 +1,4 @@
 *-token
-poll
-api
+server
 worker
 flock
