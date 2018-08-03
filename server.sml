@@ -48,7 +48,7 @@ fun claim conn (id,name) =
     val f = Int.toString id
     val old = OS.Path.concat("waiting",f)
     val new = OS.Path.concat("running",f)
-    val fd = acquire_lock ()
+    val () = acquire_lock ()
     val () =
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
         cgi_die conn 500 ["job ",f, " is both waiting and running"]
@@ -61,7 +61,7 @@ fun claim conn (id,name) =
               handle Option => cgi_die conn 500 ["job ",f," has invalid file format"]
   in
     TextIO.closeIn inp;
-    Posix.IO.close fd;
+    release_lock ();
     GitHub.set_status conn f sha Pending
   end
 
@@ -69,25 +69,25 @@ fun append conn (id,line) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
-    val fd = acquire_lock ()
+    val () = acquire_lock ()
     val out = TextIO.openAppend p handle e as IO.Io _ => (cgi_die conn 409 ["job ",f," is not running: cannot append"]; raise e)
   in
     print_log_entry out (Date.fromTimeUniv(Time.now()),line);
     TextIO.closeOut out;
-    Posix.IO.close fd
+    release_lock ()
   end
 
 fun log conn (id,_,len) =
   let
     val f = Int.toString id
     val p = OS.Path.concat("running",f)
-    val fd = acquire_lock ()
+    val () = acquire_lock ()
     val out = TextIO.openAppend p
               handle e as IO.Io _ => (cgi_die conn 409 ["job ",f," is not running: cannot log"]; raise e)
   in
     outputN_from_socket conn (out, len);
     TextIO.closeOut out;
-    Posix.IO.close fd
+    release_lock ()
   end
 
 fun upload conn (id,name,len) =
@@ -110,7 +110,7 @@ fun stop conn id =
     val f = Int.toString id
     val old = OS.Path.concat("running",f)
     val new = OS.Path.concat("stopped",f)
-    val fd = acquire_lock ()
+    val () = acquire_lock ()
     val () =
       if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
         if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
@@ -124,7 +124,7 @@ fun stop conn id =
     val typ = read_job_type inp
   in
     TextIO.closeIn inp;
-    Posix.IO.close fd;
+    release_lock ();
     GitHub.set_status conn f sha status;
     send_email conn
       (String.concat[status_to_string status,": Job ",f," (",typ,")"])
@@ -137,30 +137,30 @@ fun abort conn id =
     val f = Int.toString id
     val old = OS.Path.concat("stopped",f)
     val new = OS.Path.concat("aborted",f)
-    val fd = acquire_lock ()
+    val () = acquire_lock ()
   in
     if OS.FileSys.access(old,[OS.FileSys.A_READ]) then
       if OS.FileSys.access(new,[OS.FileSys.A_READ]) then
         cgi_die conn 500 ["job ",f, " is both stopped and aborted"]
-      else (OS.FileSys.rename{old = old, new = new}; Posix.IO.close fd)
+      else (OS.FileSys.rename{old = old, new = new}; release_lock ())
     else cgi_die conn 409 ["job ",f," is not stopped: cannot abort"]
   end
 
 fun refresh () =
   let
     val () = OS.Process.sleep (Time.fromSeconds 20)
-    val snapshots = get_current_snapshots ()
-    val fd = acquire_lock ()
-    val () = clear_list "waiting"
+    val snapshots = get_current_snapshots thread_die ()
+    val () = acquire_lock ()
+    val () = clear_list thread_die "waiting"
     (* TODO: stop timed out jobs *)
-    val running_ids = running die ()
-    val stopped_ids = stopped die ()
-    val snapshots = filter_out (same_head "running") running_ids snapshots
-    val snapshots = filter_out (same_snapshot "stopped") stopped_ids snapshots
-    val avoid_ids = running_ids @ stopped_ids @ aborted die ()
+    val running_ids = running thread_die ()
+    val stopped_ids = stopped thread_die ()
+    val snapshots = filter_out (same_head thread_die "running") running_ids snapshots
+    val snapshots = filter_out (same_snapshot thread_die "stopped") stopped_ids snapshots
+    val avoid_ids = running_ids @ stopped_ids @ aborted thread_die ()
     val () = if List.null snapshots then ()
              else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
-  in Posix.IO.close fd end
+  in release_lock () end
 
 datatype request = Api of api | Html of html_request
 
@@ -207,9 +207,7 @@ in
       val () =
         case api of
           (G _) => ()
-        | (P Refresh) => (case Posix.Process.fork () of
-                            NONE => (Socket.close conn; refresh ())
-                          | SOME _ => ())
+        | (P Refresh) => ignore (Thread.Thread.fork (refresh, []))
         | (P (Claim x)) => claim conn x
         | (P (Append x)) => append conn x
         | (P (Log x)) => log conn x
@@ -243,29 +241,17 @@ fun main () =
     val port = Option.valOf (Int.fromString (List.hd args))
                handle Empty => 5000 | Option => 5000
     val listener = make_listener port
-    fun loop (n, reqs) =
-      if n > 8 then
-        let
-          val (pid, status) = Posix.Process.wait ()
-          val (found, rest) = List.partition (equal pid) reqs
-        in
-          loop (n - List.length found, rest)
-        end
-      else
-        let
-          val (connection, _) = Socket.accept listener
-          val environment = scgi_env (recvNetstring connection)
-        in
-          case Posix.Process.fork () of
-            NONE => (
-              Socket.close listener;
-              serve connection environment;
-              Socket.close connection
-            )
-          | SOME pid => (
-              Socket.close connection;
-              loop (n+1, pid::reqs)
-            )
-        end
-  in loop (0, []) end
+    fun loop threads =
+      let
+        val threads = limit_threads 8 threads
+        val (connection, _) = Socket.accept listener
+        val environment = scgi_env (recvNetstring connection)
+        fun handle_request () = (
+          serve connection environment;
+          Socket.close connection)
+        val thread = Thread.Thread.fork (handle_request, [])
+      in
+        loop (thread::threads)
+      end
+  in loop [] end
   handle e => (TextIO.output(TextIO.stdErr, String.concat["Exception: ", exnMessage e, "\n"]); raise e)

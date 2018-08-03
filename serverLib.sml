@@ -5,9 +5,8 @@
   We use the filesystem as a database and put all state in it.
   Everything is relative to the current directory.
 
-  We expect to be single-threaded, and use a lock file called
-    lock
-  to ensure this.
+  Only one thread may access the filesystem at a time.
+  This restriction is implemented using a Thread.Mutex.mutex.
 
   Job lists are implemented as directories:
     waiting, running, stopped, aborted
@@ -59,27 +58,62 @@ fun write_text_response conn st s =
     sendStr conn s
   end
 
+local
+  val mutex = Thread.Mutex.mutex ()
+  val owner = ref NONE
+in
+  fun acquire_lock () = (Thread.Mutex.lock mutex; owner := SOME (Thread.Thread.self ()))
+  fun release_lock () =
+    if !owner = SOME (Thread.Thread.self ()) then
+      (owner := NONE; Thread.Mutex.unlock mutex)
+    else ()
+end
+
+local
+  val mutex = Thread.Mutex.mutex ()
+  val conditionVar = Thread.ConditionVar.conditionVar ()
+in
+  fun limit_threads n threads =
+    let
+      val () = Thread.Mutex.lock mutex
+      val threads = List.filter Thread.Thread.isActive threads
+    in
+      if List.length threads > n then
+       (Thread.ConditionVar.wait (conditionVar, mutex);
+        Thread.Mutex.unlock mutex;
+        limit_threads n threads)
+      else
+       threads before
+       Thread.Mutex.unlock mutex
+    end
+  fun dying_thread () =
+    Thread.ConditionVar.broadcast conditionVar
+end
+
+fun thread_die ls =
+  let in
+    warn ls;
+    release_lock ();
+    dying_thread ();
+    Thread.Thread.exit ();
+    raise (Fail "thread_die: thread exited")
+  end
+
+fun thread_assert b ls =
+  if b then () else thread_die ls
+
 fun cgi_die conn st ls =
   let in
     write_text_response conn st "Error:\n";
     List.app (sendStr conn) ls; sendStr conn "\n";
-    OS.Process.exit OS.Process.success
+    Socket.close conn;
+    release_lock ();
+    dying_thread ();
+    Thread.Thread.exit ();
+    raise (Fail "cgi_die: thread exited")
   end
 
 fun cgi_assert conn b st ls = if b then () else cgi_die conn st ls
-
-local
-  open Posix.IO Posix.FileSys
-  val flock = FLock.flock {ltype=F_WRLCK, whence=SEEK_SET, start=0, len=0, pid=NONE}
-  val smode = S.flags[S.irusr,S.iwusr,S.irgrp,S.iroth]
-  val lock_name = "lock"
-in
-  fun acquire_lock() =
-    let
-      val fd = Posix.FileSys.creat(lock_name,smode)
-      val _ = Posix.IO.setlkw(fd,flock)
-    in fd end
-end
 
 type obj = { hash : string, message : string, date : Date.date }
 val empty_obj : obj = { hash = "", message = "", date = Date.fromTimeUniv Time.zeroTime }
@@ -174,13 +208,15 @@ in
       fun loop ls =
         case readDir dir of NONE => ls
       | SOME d => if isDir d then loop (List.filter(not o equal d) ls)
-                  else if List.exists (equal d) ls then cgi_die conn 500 [d," exists and is not a directory"]
+                  else if List.exists (equal d) ls then
+                    cgi_die conn 500 [d," exists and is not a directory"]
                   else loop ls
       val dirs = loop (artefacts_dir::queue_dirs)
       val () = if List.null dirs then () else
-               let val fd = acquire_lock () in
+               let in
+                 acquire_lock ();
                  List.app mkDir dirs;
-                 Posix.IO.close fd
+                 release_lock ()
                end
     in
       closeDir dir
@@ -203,7 +239,7 @@ in
                        | SOME id => if check_id f id then loop (insert id acc) else badFile f
       val ids = loop []
     in ids end
-  fun clear_list q =
+  fun clear_list die q =
     let
       val dir = openDir q handle OS.SysErr _ => die ["could not open ",q," directory"]
       fun loop () =
@@ -213,7 +249,7 @@ in
           val f = OS.Path.concat(q,f)
           val () = remove f
                    handle (e as OS.SysErr _) =>
-                     die ["unexpected error removing ",f,"\n",exnMessage e]
+                     (die ["unexpected error removing ",f,"\n",exnMessage e]; raise e)
         in loop () end
     in loop () end
   fun read_artefacts jid =
@@ -241,12 +277,12 @@ fun queue_of_job conn f =
     handle Match => cgi_die conn 404 ["job ",f," not found"]
   end
 
-fun read_job_snapshot q id : bare_snapshot =
+fun read_job_snapshot die q id : bare_snapshot =
   let
     val f = OS.Path.concat(q,Int.toString id)
     val inp = TextIO.openIn f handle IO.Io _ => die ["cannot open ",f]
     val bs = read_bare_snapshot inp
-             handle Option => die [f," has invalid file format"]
+             handle Option => (die [f," has invalid file format"]; raise Option)
     val () = TextIO.closeIn inp
   in bs end
 
@@ -266,9 +302,9 @@ fun timings_of_dir conn dir files =
 fun get_head_sha ({bcml,...}:bare_snapshot) =
   case bcml of Bbr sha => sha | Bpr {head_sha,...} => head_sha
 
-fun same_snapshot q = equal o read_job_snapshot q
-fun same_head q id =
-  equal (get_head_sha (read_job_snapshot q id)) o get_head_sha
+fun same_snapshot die q = equal o read_job_snapshot die q
+fun same_head die q id =
+  equal (get_head_sha (read_job_snapshot die q id)) o get_head_sha
 
 fun filter_out eq ids snapshots =
   let
@@ -294,7 +330,7 @@ fun add_waiting avoid_ids (snapshot,id) =
     val id = first_unused_id avoid_ids id
     val f = Int.toString id
     val path = OS.Path.concat("waiting",f)
-    val () = assert (not(OS.FileSys.access(path, []))) ["job ",f," already exists waiting"]
+    val () = thread_assert (not(OS.FileSys.access(path, []))) ["job ",f," already exists waiting"]
     val out = TextIO.openOut path
     val () = print_snapshot out snapshot
     val () = TextIO.closeOut out
@@ -513,7 +549,7 @@ end
 local
   open ReadJSON
 in
-  fun get_current_snapshots () : snapshot list =
+  fun get_current_snapshots die () : snapshot list =
     let
       val response = GitHub.graphql cakeml_query
       fun add_master obj acc = (Branch("master",obj)::acc)
@@ -551,7 +587,7 @@ in
       List.map (fn i => { cakeml = i, hol = hol_obj } )
         (List.rev cakeml_integrations) (* after rev: oldest pull request first, master last *)
     end
-    handle ReadFailure s => die ["Could not read response from GitHub: ",s]
+    handle e as ReadFailure s => (die ["Could not read response from GitHub: ",s]; raise e)
 end
 
 fun read_last_date inp =
