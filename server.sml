@@ -146,20 +146,20 @@ fun abort conn id =
     else cgi_die conn 409 ["job ",f," is not stopped: cannot abort"]
   end
 
-fun refresh conn () =
+fun refresh () =
   let
     val () = OS.Process.sleep (Time.fromSeconds 20)
-    val snapshots = get_current_snapshots conn
+    val snapshots = get_current_snapshots ()
     val fd = acquire_lock ()
-    val () = clear_list conn "waiting"
+    val () = clear_list "waiting"
     (* TODO: stop timed out jobs *)
-    val running_ids = running conn ()
-    val stopped_ids = stopped conn ()
-    val snapshots = filter_out (same_head conn "running") running_ids snapshots
-    val snapshots = filter_out (same_snapshot conn "stopped") stopped_ids snapshots
-    val avoid_ids = running_ids @ stopped_ids @ aborted conn ()
+    val running_ids = running die ()
+    val stopped_ids = stopped die ()
+    val snapshots = filter_out (same_head "running") running_ids snapshots
+    val snapshots = filter_out (same_snapshot "stopped") stopped_ids snapshots
+    val avoid_ids = running_ids @ stopped_ids @ aborted die ()
     val () = if List.null snapshots then ()
-             else ignore (List.foldl (add_waiting conn avoid_ids) 1 snapshots)
+             else ignore (List.foldl (add_waiting avoid_ids) 1 snapshots)
   in Posix.IO.close fd end
 
 datatype request = Api of api | Html of html_request
@@ -201,13 +201,15 @@ in
     let
       val response =
         case api of
-          (G Waiting) => id_list (waiting conn ())
+          (G Waiting) => id_list (waiting (cgi_die conn 500) ())
         | (G (Job id)) => file_to_string (job conn id)
         | (P p) => post_response p
       val () =
         case api of
           (G _) => ()
-        | (P Refresh) => refresh conn ()
+        | (P Refresh) => (case Posix.Process.fork () of
+                            NONE => (Socket.close conn; refresh ())
+                          | SOME _ => ())
         | (P (Claim x)) => claim conn x
         | (P (Append x)) => append conn x
         | (P (Log x)) => log conn x

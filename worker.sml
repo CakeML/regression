@@ -79,21 +79,6 @@ fun usage_string name = String.concat[
     8. Stop the job
 *)
 
-fun warn ls = (
-  TextIO.output(TextIO.stdErr,String.concat ls);
-  TextIO.output(TextIO.stdErr,"\n"))
-
-fun die ls = (
-  warn ls;
-  OS.Process.exit OS.Process.failure;
-  raise (Fail "impossible"))
-
-fun diag ls = (
-  TextIO.output(TextIO.stdOut,String.concat ls);
-  TextIO.output(TextIO.stdOut,"\n"))
-
-fun assert b ls = if b then () else die ls
-
 fun file_to_line f =
   let
     val inp = TextIO.openIn f

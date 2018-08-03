@@ -18,8 +18,10 @@ Reference:
   POST methods:
 
     refresh:
-      update the queues according to the current state on GitHub
-      returns "Refreshed"
+      update the queues according to the current state on GitHub.
+      the update happens concurrently after a delay, to give GitHub a
+      chance to update itself first.
+      returns "Refresh forked"
 
     claim id name:
       worker <name> claims job <id>.
@@ -105,7 +107,7 @@ datatype post_api =
   | Abort of id
 datatype api = G of get_api | P of post_api
 
-fun post_response Refresh = "Refreshed\n"
+fun post_response Refresh = "Refresh forked\n"
   | post_response (Claim _) = "Claimed\n"
   | post_response (Append _) = "Appended\n"
   | post_response (Stop _) = "Stopped\n"

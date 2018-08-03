@@ -48,6 +48,22 @@ structure utilLib = struct
     CharVector.tabulate(Word8Vector.length vec,
       (fn i => Char_fromWord8 (Word8Vector.sub(vec, i))))
 
+  fun warn ls = (
+    TextIO.output(TextIO.stdErr,String.concat ls);
+    TextIO.output(TextIO.stdErr,"\n");
+    TextIO.flushOut TextIO.stdErr)
+
+  fun die ls = (
+    warn ls;
+    OS.Process.exit OS.Process.failure)
+
+  fun diag ls = (
+    TextIO.output(TextIO.stdOut,String.concat ls);
+    TextIO.output(TextIO.stdOut,"\n");
+    TextIO.flushOut TextIO.stdOut)
+
+  fun assert b ls = if b then () else die ls
+
   fun scgi_env body =
     assoc_env (pairList(String.fields (equal (Char.chr 0)) body))
 
