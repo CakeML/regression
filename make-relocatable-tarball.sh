@@ -1,4 +1,6 @@
 #!/bin/sh
+## A (possibly outdated) tool to help with saving a worker's build
+## state for inspection elsewhere.
 set -e
 NAME=cakeml-$1
 HOLDIR=$(cat ${NAME}/HOLDIR)

@@ -1,3 +1,5 @@
+## Worker docker container for easy deployment `docker run -d agomezl/oven`.
+
 FROM fedora:27
 
 ARG POLY_GIT=https://github.com/polyml/polyml.git

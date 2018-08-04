@@ -1,8 +1,8 @@
 (*
-  Maintenance tool: acquire the lock that is used by the server to run a
-  command without interfering with the server.
+  Outdated maintenance tool: acquire the lock that used to be used by the
+  server, hoping to run a command without interfering with the server.
 
-  Note: with the new threaded server, this tool no longer makes sense.
+  With the new threaded server, this tool no longer makes sense.
   The lock is internal to the server process, so cannot be acquired externally.
 *)
 use "serverLib.sml";

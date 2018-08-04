@@ -1,3 +1,6 @@
+/*
+  Style file for server-generated web pages.
+*/
 h2, h3, h3 a, a:hover { color: #e80 }
 h2 { text-transform: capitalize; }
 h3 { font-size: 22px; }
