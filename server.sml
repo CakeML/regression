@@ -224,7 +224,9 @@ fun dispatch_req conn req =
     case req of
       (Api api) => dispatch conn api
     | (Html req) => html_response conn req
-  end handle e => cgi_die conn 500 [exnMessage e]
+  end
+  handle SML90.Interrupt => raise SML90.Interrupt
+       | e => cgi_die conn 500 [exnMessage e]
 
 fun serve conn getEnv =
   let
@@ -240,18 +242,24 @@ fun main () =
     val args = CommandLine.arguments()
     val port = Option.valOf (Int.fromString (List.hd args))
                handle Empty => 5000 | Option => 5000
-    val listener = make_listener port
-    fun loop threads =
+    fun loop listener threads =
       let
-        val threads = limit_threads 8 threads
+        val threads = limit_threads 16 threads
         val (connection, _) = Socket.accept listener
-        val environment = scgi_env (recvNetstring connection)
-        fun handle_request () = (
-          serve connection environment;
-          Socket.close connection)
+        fun handle_request () =
+          let in
+            (serve connection
+               (scgi_env (recvNetstring connection))
+             handle SML90.Interrupt => raise SML90.Interrupt
+                  | e => (Socket.close connection handle OS.SysErr _ => ();
+                          thread_die ["Exception: ", exnMessage e]));
+            Socket.close connection
+          end
+          handle SML90.Interrupt => raise SML90.Interrupt
+               | e => thread_die ["Exception: ", exnMessage e]
         val thread = Thread.Thread.fork (handle_request, [])
       in
-        loop (thread::threads)
-      end
-  in loop [] end
-  handle e => (TextIO.output(TextIO.stdErr, String.concat["Exception: ", exnMessage e, "\n"]); raise e)
+        loop listener (thread::threads)
+      end handle OS.SysErr _ => loop (make_listener port) threads
+  in loop (make_listener port) [] end
+  handle e => die ["Exception: ", exnMessage e]

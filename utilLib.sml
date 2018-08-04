@@ -136,17 +136,18 @@ structure utilLib = struct
 
   fun recvNetstring socket =
     let
-      val len = Option.valOf (
-                  Int.fromString(
-                    CharVector_fromWord8Vector(
-                      recvVecUntil (socket, equal (Word8_fromChar#":")))))
+      val lenstr =
+            CharVector_fromWord8Vector(
+              recvVecUntil (socket, equal (Word8_fromChar#":")))
+      val len = Option.valOf (Int.fromString lenstr)
+                handle Option => raise Fail ("recvNetstring: bad length: "^lenstr)
       val str = CharVector_fromWord8Vector(
                   recvVecN (socket, len))
     in
       str before
         (if Word8Vector.sub(recvVecN (socket, 1), 0) = (Word8_fromChar#",")
          then () else raise Fail "recvNetstring: no trailing comma")
-    end handle Option => raise Fail "recvNetstring: bad length"
+    end
 
   fun file_to_string f =
     let val inp = TextIO.openIn f in TextIO.inputAll inp before TextIO.closeIn inp end

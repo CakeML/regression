@@ -228,12 +228,12 @@ local
 in
   fun read_list die q () =
     let
-      val dir = openDir q handle (e as OS.SysErr _) => (die ["could not open ",q," directory"]; raise e)
+      val dir = openDir q handle e as OS.SysErr _ => (die ["could not open ",q," directory"]; raise e)
       fun badFile f = die ["found bad filename ",f," in ",q]
       fun loop acc =
         case readDir dir of NONE => acc before closeDir dir
       | SOME f => if isDir (OS.Path.concat(q,f))
-                     handle (e as OS.SysErr _) => (die [f, " disappeared from ", q, " unexpectedly"]; raise e)
+                     handle e as OS.SysErr _ => (die [f, " disappeared from ", q, " unexpectedly"]; raise e)
                   then die ["found unexpected directory ",f," in ",q]
                   else case Int.fromString f of NONE => badFile f
                        | SOME id => if check_id f id then loop (insert id acc) else badFile f
@@ -248,7 +248,7 @@ in
         let
           val f = OS.Path.concat(q,f)
           val () = remove f
-                   handle (e as OS.SysErr _) =>
+                   handle e as OS.SysErr _ =>
                      (die ["unexpected error removing ",f,"\n",exnMessage e]; raise e)
         in loop () end
     in loop () end
@@ -294,7 +294,9 @@ fun timings_of_dir conn dir files =
       in
         (case read_total_time dir inp of NONE => (t,fs) | SOME s => (t+s,f::fs))
         before TextIO.closeIn inp
-      end handle e => cgi_die conn 500 ["unexpected error on ",f,"\n",exnMessage e]
+      end
+      handle SML90.Interrupt => raise SML90.Interrupt
+           | e => cgi_die conn 500 ["unexpected error on ",f,"\n",exnMessage e]
   in
     List.foldl foldthis (0,[]) files
   end
