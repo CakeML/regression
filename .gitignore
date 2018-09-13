@@ -3,3 +3,8 @@ poll
 api
 worker
 flock
+cakeml-*
+HOL-*
+HOL.git
+cakeml.git
+name
