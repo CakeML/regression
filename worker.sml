@@ -104,19 +104,43 @@ fun file_to_line f =
     | SOME line => String.extract(line,0,SOME(String.size line - 1))
   end
 
+val orig_working_dir = OS.FileSys.getDir ()
+
+val status_dir = OS.Path.concat (orig_working_dir, "status")
+fun status_fname jid = OS.Path.concat (status_dir, "job_" ^ jid)
+
+fun status_begin resumed jid = let
+    val pid = Posix.ProcEnv.getpid ()
+    val pid_string = SysWord.fmt StringCvt.DEC (Posix.Process.pidToWord pid)
+    val _ = OS.FileSys.mkDir status_dir handle OS.SysErr _ => ()
+    val f = TextIO.openOut (status_fname jid)
+    val msg = "Job started.\njob: " ^ jid ^ "\npid: " ^ pid_string ^ "\n"
+    val r_msg = "resumed: " ^ (if resumed then "true" else "false") ^ "\n"
+  in TextIO.output (f, msg ^ r_msg); TextIO.closeOut f end
+
+fun status_append jid line = let
+    val f = TextIO.openAppend (status_fname jid)
+  in TextIO.output (f, line ^ "\n"); TextIO.closeOut f end
+
+fun status_last_line jid = let
+    val f = TextIO.openIn (status_fname jid)
+    fun get prev = case TextIO.inputLine f of
+        NONE => prev
+      | SOME line => get (if null (String.tokens Char.isSpace line)
+          then prev else line)
+    val last = get ""
+  in TextIO.closeIn f; last end
+
 val system_output = system_output die
 
 val capture_file = "regression.log"
 val timing_file = "timing.log"
 
-fun system_capture_with redirector cmd_args =
+fun system_capture_with redirector id cmd_args =
   let
     (* This could be implemented using Posix without relying on the shell *)
     val status = OS.Process.system(String.concat[cmd_args, redirector, capture_file, " 2>&1"])
   in OS.Process.isSuccess status end
-
-val system_capture = system_capture_with " >"
-val system_capture_append = system_capture_with " >>"
 
 structure API = struct
   val endpoint = String.concat[server,"/api"]
@@ -136,6 +160,20 @@ structure API = struct
         ["Unexpected response:\nWanted: ",expected,"Got: ",response]
     end
 end
+
+fun system_capture_loop redirector id cmd_args = let
+    val jid = Int.toString id
+    val _ = status_append jid ("Task: " ^ cmd_args)
+    val _ = status_append jid ("Running")
+    val res = system_capture_with redirector cmd_args
+    val killed = String.isPrefix "Restart" (status_last_line jid)
+  in if killed then
+    (API.post (Append (id, "Restarting task."));
+        system_capture_loop redirector id cmd_args)
+  else res end
+
+val system_capture = system_capture_with " >"
+val system_capture_append = system_capture_with " >>"
 
 val hol_remote = "https://github.com/HOL-Theorem-Prover/HOL.git"
 val cakeml_remote = "https://github.com/CakeML/cakeml.git"
@@ -236,9 +274,9 @@ in
     let
       val () = OS.FileSys.chDir HOLDIR
       val configured =
-        reused orelse system_capture configure_hol
+        reused orelse system_capture id configure_hol
       val built = configured andalso
-                  system_capture_append "bin/build --nograph"
+                  system_capture_append id "bin/build --nograph"
       val () = OS.FileSys.chDir OS.Path.parentArc
       val () = if built then () else
                (API.post (Append (id, "FAILED: building HOL"));
@@ -313,7 +351,7 @@ in
             val entered = (OS.FileSys.chDir dir; true)
                           handle e as OS.SysErr _ => (API.post (Append(id, exnMessage e)); false)
           in
-            if entered andalso system_capture holmake_cmd then
+            if entered andalso system_capture id holmake_cmd then
               (if is_master then app ((upload id) o trimr) artefacts else ();
                API.post (Append(id,
                  String.concat["Finished ",dir,pad dir,file_to_line timing_file]));
@@ -367,6 +405,7 @@ fun work resumed id =
   let
     val response = API.get (Job id)
     val jid = Int.toString id
+    val _ = status_begin resumed jid
   in
     if String.isPrefix "Error:" response
     then (warn [response]; false) else
