@@ -493,7 +493,7 @@ fun main () =
                handle IO.Io _ => die["Could not determine worker name. Try uname -norm >name."]
     val () = ensure_bare_clone_exists hol_remote "--single-branch " HOLDIR_git
     val () = ensure_bare_clone_exists cakeml_remote "" CAKEMLDIR_git
-    fun loop resume =
+    fun loop select resume =
       let
         val waiting_ids =
           case select of SOME id => [id] | NONE =>
@@ -503,7 +503,7 @@ fun main () =
       in
         case waiting_ids of [] =>
           if no_wait then diag ["No waiting jobs. Exiting."]
-          else (diag ["No waiting jobs. Will wait for them."]; wait (); loop NONE)
+          else (diag ["No waiting jobs. Will wait for them."]; wait (); loop NONE NONE)
         | (id::_) => (* could prioritise for ids that match our HOL dir *)
           let
             val jid = Int.toString id
@@ -520,7 +520,7 @@ fun main () =
           in
             if no_loop orelse (resumed andalso not success)
             then diag ["Finished work. Exiting."]
-            else (diag ["Finished work. Looking for more."]; loop NONE)
+            else (diag ["Finished work. Looking for more."]; loop NONE NONE)
           end
       end handle e => die ["Unexpected failure: ",exnMessage e]
-  in loop resume end
+  in loop select resume end
