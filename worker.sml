@@ -136,7 +136,7 @@ val system_output = system_output die
 val capture_file = "regression.log"
 val timing_file = "timing.log"
 
-fun system_capture_with redirector id cmd_args =
+fun system_capture_with redirector cmd_args =
   let
     (* This could be implemented using Posix without relying on the shell *)
     val status = OS.Process.system(String.concat[cmd_args, redirector, capture_file, " 2>&1"])
@@ -163,8 +163,9 @@ end
 
 fun system_capture_loop redirector id cmd_args = let
     val jid = Int.toString id
-    val _ = status_append jid ("Task: " ^ cmd_args)
-    val _ = status_append jid ("Running")
+    val dir = OS.FileSys.getDir ()
+    val msg = "Task: " ^ cmd_args ^ "\nDir: " ^ dir ^ "\nRunning."
+    val _ = status_append jid msg
     val res = system_capture_with redirector cmd_args
     val killed = String.isPrefix "Restart" (status_last_line jid)
   in if killed then
@@ -172,8 +173,8 @@ fun system_capture_loop redirector id cmd_args = let
         system_capture_loop redirector id cmd_args)
   else res end
 
-val system_capture = system_capture_with " >"
-val system_capture_append = system_capture_with " >>"
+val system_capture = system_capture_loop " >"
+val system_capture_append = system_capture_loop " >>"
 
 val hol_remote = "https://github.com/HOL-Theorem-Prover/HOL.git"
 val cakeml_remote = "https://github.com/CakeML/cakeml.git"
