@@ -444,7 +444,10 @@ fun work resumed id =
 fun wait () =
   let
     val cmd = curl_path
-    val args = API.std_options @ [String.concat[host,"/regression-updates.cgi"]]
+    (* 20 minute timeout in any case *)
+    val timeout = ["-m", "1200"]
+    val args = API.std_options @ timeout
+        @ [String.concat[host,"/regression-updates.cgi"]]
     val proc = Unix.execute(cmd,args)
                handle e as OS.SysErr _ => die[curl_path," failed to execute on",String.concatWith" "args,"\n",exnMessage e]
     val inp = Unix.textInstreamOf proc
