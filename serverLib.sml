@@ -520,6 +520,11 @@ structure ReadJSON = struct
 
 end
 
+val no_test_labels = ["test failing", "no test"]
+fun do_test (PR pr) = List.all (fn lab => List.all (fn lab2 => lab <> lab2)
+    no_test_labels) (#labels pr)
+  | do_test _ = true
+
 local
   open ReadJSON
 in
@@ -530,7 +535,7 @@ in
       (* This assumes the PR base always matches master.
          We could read it from GitHub instead. *)
       fun add_prs prs [m as (Branch(_,base_obj))] =
-        m :: (List.map (PR o with_base_obj base_obj) prs)
+        m :: List.filter do_test (List.map (PR o with_base_obj base_obj) prs)
       | add_prs _ _ = cgi_die 500 ["add_prs"]
       val (cakeml_integrations,ss) =
         read_dict
