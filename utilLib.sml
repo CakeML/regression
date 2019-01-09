@@ -5,9 +5,6 @@ structure utilLib = struct
 
   fun equal x y = x = y
 
-  fun find f (x::xs) = if f x then x else find f xs
-    | find _ _ = raise Match
-
   fun assoc k [] = raise Match
     | assoc k ((k',v)::ls) = if k = k' then v else assoc k ls
 

@@ -238,8 +238,8 @@ fun queue_of_job f =
     fun mk_path dir = OS.Path.concat(dir,f)
     fun access dir = OS.FileSys.access(mk_path dir, [OS.FileSys.A_READ])
   in
-    find access queue_dirs
-    handle Match => cgi_die 404 ["job ",f," not found"]
+    Option.valOf (List.find access queue_dirs)
+    handle Option => cgi_die 404 ["job ",f," not found"]
   end
 
 fun read_job_snapshot q id : bare_snapshot =
