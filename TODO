@@ -1,3 +1,5 @@
+TODO: Rename "stop" terminology to "finish".
+
 TODO: Wait after the refresh API is hit before querying for changes on GitHub.
   It seems like it takes a while (probably ~1min is fine) for mergable pull
   requests to show up. (Or investigate why this is happening.) Note: the API
@@ -10,15 +12,6 @@ TODO: Add an option for cleaning away old directories (possibly do this by defau
 TODO: Figure out how to re-use partially built CakeML state for new jobs
   Re-use should be possible for the prefix of previously finished directories
   that have not changed
-
-TODO: Add interface to stop jobs. Rethink job categorisation.
-  Should the job page have a link for cancelling that job?
-  If so, how would workers know to do so? Polling?
-  Currently the interface, if you control a worker, is:
-    CTRL-C to stop building, then manually hit the /api/stop/n URL to move it
-    to Stopped, then if desired call the worker with --abort to move it to
-    Aborted.
-  Should the worker have a --stop command? Or --fail/--succeed?
 
 TODO: Make server stop jobs that have been running too long
   This could be done as part of the refresh action.
