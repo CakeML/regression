@@ -29,8 +29,8 @@ fun usage_string name = String.concat[
   "                exit (even without --no-loop).\n",
   "  --upload id : Assume this worker has just finished job <id> and upload its build\n",
   "                artefacts (usually automatic after master succeeds), then exit.\n",
-  "  --stop id   : Stop job <id>, then exit.\n",
-  "  --abort id  : Mark job <id> as having aborted, i.e., stopped without a proper\n",
+  "  --finish id : Mark job <id> as finished, then exit.\n",
+  "  --abort id  : Mark job <id> as having aborted, i.e., finished without a proper\n",
   "                success or failure, then exit.\n",
   "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
 
@@ -63,7 +63,7 @@ fun usage_string name = String.concat[
        On failure:
          1. Append "FAILED: building HOL"
          2. Log the captured output
-         3. Stop the job
+         3. Finish the job
     5. Set up cakeml working directory according to the job snapshot
     6. For each directory in the CakeML build sequence
        1. Append "Starting <dir>"
@@ -73,10 +73,10 @@ fun usage_string name = String.concat[
           On failure:
             1. Append "FAILED: <dir>"
             2. Log the captured output
-            3. Stop the job
+            3. Finish the job
        3. Append "Finished <dir>: <time> <memory>"
     7. Append "SUCCESS"
-    8. Stop the job
+    8. Finish the job
 *)
 
 fun warn ls = (
@@ -282,7 +282,7 @@ in
       val () = if built then () else
                (API.post (Append (id, "FAILED: building HOL"));
                 API.post (Log(id,capture_file,0));
-                API.post (Stop id))
+                API.post (Finish id))
     in
       built
     end
@@ -361,7 +361,7 @@ in
             else
               (API.post (Append(id,String.concat["FAILED: ",dir]));
                API.post (Log(id,capture_file,0));
-               API.post (Stop id);
+               API.post (Finish id);
                false)
           end
       val success = loop skip
@@ -370,7 +370,7 @@ in
         if success then
           let in
             API.post (Append(id,"SUCCESS"));
-            API.post (Stop id)
+            API.post (Finish id)
           end
         else ()
     in
@@ -488,9 +488,9 @@ fun main () =
     val () = arg_job_action "--abort" args (fn jid => fn id => (
                diag ["Marking job ", jid, " as aborted."];
                API.post (Abort id)))
-    val () = arg_job_action "--stop" args (fn jid => fn id => (
-               diag ["Marking job ", jid, " as stopped."];
-               API.post (Stop id)))
+    val () = arg_job_action "--finish" args (fn jid => fn id => (
+               diag ["Marking job ", jid, " as finished."];
+               API.post (Finish id)))
     val () = arg_job_action "--upload" args (fn jid => fn id => (
                  diag ["Uploading artefacts for job ",jid,"."];
                  upload_artefacts (mk_CAKEMLDIR jid) id))

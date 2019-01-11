@@ -46,29 +46,29 @@ Reference:
       returns "Uploaded"
       fails (409) if a file called <name> already exists for <id>
 
-    stop id:
-      mark job <id> as stopped
-      returns "Stopped"
+    finish id:
+      mark job <id> as finished
+      returns "Finished"
       sends email with output
       fails (409) if <id> is not currently running
 
     abort id:
       mark job <id> as aborted
       returns "Aborted"
-      fails (409) if <id> is not currently stopped
+      fails (409) if <id> is not currently finished
 
   all failures return text starting with "Error:"
 
 Jobs move (right only) between these states:
 
-  waiting, running, stopped, aborted
+  waiting, running, finished, aborted
 
 waiting = ready to be run, waiting for a worker
 running = claimed to be running by a worker
-stopped = finished either with success or failure
+finished = finished either with success or failure
 aborted = the worker did not finish properly
 
-When the waiting queue is refreshed, the commits of running or stopped jobs are
+When the waiting queue is refreshed, the commits of running or finished jobs are
 not considered to need running again, whereas the commits of aborted jobs are
 (as long as they are still the latest commits).
 
@@ -101,14 +101,14 @@ datatype post_api =
   | Append of id * line (* not including newline *)
   | Log of id * string * int
   | Upload of id * string * int
-  | Stop of id
+  | Finish of id
   | Abort of id
 datatype api = G of get_api | P of post_api
 
 fun post_response Refresh = "Refreshed\n"
   | post_response (Claim _) = "Claimed\n"
   | post_response (Append _) = "Appended\n"
-  | post_response (Stop _) = "Stopped\n"
+  | post_response (Finish _) = "Finished\n"
   | post_response (Abort _) = "Aborted\n"
   | post_response (Log _) = "Logged\n"
   | post_response (Upload _) = "Uploaded\n"
@@ -142,14 +142,14 @@ fun api_to_string (G Waiting) = "/waiting"
   | api_to_string (G (Job id)) = String.concat["/job/",Int.toString id]
   | api_to_string (P (Claim (id,_))) = String.concat["/claim/",Int.toString id]
   | api_to_string (P (Append (id,_))) = String.concat["/append/",Int.toString id]
-  | api_to_string (P (Stop id)) = String.concat["/stop/",Int.toString id]
+  | api_to_string (P (Finish id)) = String.concat["/finish/",Int.toString id]
   | api_to_string (P (Abort id)) = String.concat["/abort/",Int.toString id]
 
 fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line=",line]]
   | post_curl_args (Claim  (_,name)) = ["--data-urlencode",String.concat["name=",name]]
   | post_curl_args (Log    (_,file,_)) = ["--data-binary",String.concat["@",file]]
   | post_curl_args (Upload (_,file,_)) = ["--data",String.concat["name=",List.last(#arcs(OS.Path.fromString file))],"--data-binary",String.concat["@",file]]
-  | post_curl_args (Stop  _) = ["--data",""]
+  | post_curl_args (Finish _) = ["--data",""]
   | post_curl_args (Abort _) = ["--data",""]
   | post_curl_args (Refresh) = ["--data",""]
 
@@ -209,7 +209,7 @@ fun post_from_string s len =
                     (fn id => Option.map (fn (name,l) => Upload(id,name,l))
                                          (Option.mapPartial read_name len))
                     (id_from_string n)
-  | ["stop",n] => Option.map Stop (id_from_string n)
+  | ["finish",n] => Option.map Finish (id_from_string n)
   | ["abort",n] => Option.map Abort (id_from_string n)
   | _ => NONE)
 

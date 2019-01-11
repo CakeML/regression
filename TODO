@@ -1,5 +1,3 @@
-TODO: Rename "stop" terminology to "finish".
-
 TODO: Wait after the refresh API is hit before querying for changes on GitHub.
   It seems like it takes a while (probably ~1min is fine) for mergable pull
   requests to show up. (Or investigate why this is happening.) Note: the API

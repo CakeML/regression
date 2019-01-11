@@ -10,7 +10,7 @@
   to ensure this.
 
   Job lists are implemented as directories:
-    waiting, running, stopped, aborted
+    waiting, running, finished, aborted
 
   Jobs are implemented as files with their id as filename.
 
@@ -165,7 +165,7 @@ fun print_job out (j:job) =
   in () end
 
 val artefacts_dir = "artefacts"
-val queue_dirs = ["waiting","running","stopped","aborted"]
+val queue_dirs = ["waiting","running","finished","aborted"]
 
 local
   open OS.FileSys
@@ -228,10 +228,10 @@ end
 
 val waiting = List.rev o read_list "waiting"
 val running = read_list "running"
-val stopped = read_list "stopped"
+val finished = read_list "finished"
 val aborted = read_list "aborted"
 
-val queue_funs = [waiting,running,stopped,aborted]
+val queue_funs = [waiting,running,finished,aborted]
 
 fun queue_of_job f =
   let
@@ -636,7 +636,7 @@ in
       val typ = read_job_type inp
                 handle IO.Io _ => cgi_die 500 ["cannot open ",f]
                      | Option => cgi_die 500 [f," has invalid file format"]
-      val format_type = if q = "stopped" then span (status_attrs (read_status inp)) else String.concat
+      val format_type = if q = "finished" then span (status_attrs (read_status inp)) else String.concat
       val last_date = if q = "running" then read_last_date inp else NONE
       val () = TextIO.closeIn inp
       val ago_string =
@@ -788,7 +788,7 @@ in
             val (l,r) = Substring.splitAt (Substring.full time_part,6)
             val files =
               List.map (fn id => OS.Path.concat("running",Int.toString id)) (running()) @
-              List.map (fn id => OS.Path.concat("stopped",Int.toString id)) (stopped())
+              List.map (fn id => OS.Path.concat("finished",Int.toString id)) (finished())
             val (t,fs) = timings_of_dir dir files
             val average = if List.null fs then [] else [" ",duration(Int.quot(t,List.length fs))]
             val line = String.concat [
