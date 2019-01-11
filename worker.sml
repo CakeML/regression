@@ -460,59 +460,75 @@ fun wait () =
     val () = Unix.kill(proc,Posix.Signal.int)
   in Unix.reap proc end
 
-fun get_int_arg name [] = NONE
-  | get_int_arg name [_] = NONE
-  | get_int_arg name (x::y::xs) =
-    if x = name then Int.fromString y
-    else get_int_arg name (y::xs)
+fun arg_job_action name [arg, jid] action =
+  if arg = name then
+    case Int.fromString jid of
+      SOME id => (action jid id; OS.Process.exit OS.Process.success)
+    | NONE => die ["Invalid argument after ", arg, ": ", jid]
+  else ()
+  | arg_job_action _ _ _ = ()
+
+fun extract_arg name args =
+  let val (x, args) = List.partition (equal name) args
+  in (not (List.null x), args) end
 
 fun main () =
   let
     val args = CommandLine.arguments()
     val () = if List.exists (fn a => a="--help" orelse a="-h" orelse a="-?") args
-             then (TextIO.output(TextIO.stdOut, usage_string(CommandLine.name())); OS.Process.exit OS.Process.success)
+             then (
+               TextIO.output(TextIO.stdOut, usage_string(CommandLine.name()));
+               OS.Process.exit OS.Process.success )
              else ()
-    val () = if List.exists (equal "--refresh") args
-             then (TextIO.output(TextIO.stdOut, API.raw_post Refresh); OS.Process.exit OS.Process.success)
+    val () = if args = ["--refresh"]
+             then (
+               TextIO.output(TextIO.stdOut, API.raw_post Refresh);
+               OS.Process.exit OS.Process.success )
              else ()
-    val () = case get_int_arg "--abort" args of NONE => ()
-             | SOME id => (
-                 diag ["Marking job ",Int.toString id," as aborted."];
-                 API.post (Abort id); OS.Process.exit OS.Process.success)
-    val () = case get_int_arg "--stop" args of NONE => ()
-             | SOME id => (
-                 diag ["Marking job ",Int.toString id," as stopped."];
-                 API.post (Stop id); OS.Process.exit OS.Process.success)
-    val () = case get_int_arg "--upload" args of NONE => ()
-             | SOME id => let val jid = Int.toString id in
+    val () = arg_job_action "--abort" args (fn jid => fn id => (
+               diag ["Marking job ", jid, " as aborted."];
+               API.post (Abort id)))
+    val () = arg_job_action "--stop" args (fn jid => fn id => (
+               diag ["Marking job ", jid, " as stopped."];
+               API.post (Stop id)))
+    val () = arg_job_action "--upload" args (fn jid => fn id => (
                  diag ["Uploading artefacts for job ",jid,"."];
-                 upload_artefacts (mk_CAKEMLDIR jid) id;
-                 OS.Process.exit OS.Process.success
-               end
-    val no_wait = List.exists (equal"--no-wait") args
-    val no_loop = List.exists (equal"--no-loop") args
-    val resume = get_int_arg "--resume" args
-    val select = get_int_arg "--select" args
+                 upload_artefacts (mk_CAKEMLDIR jid) id))
+    val (no_wait, args) = extract_arg "--no-wait" args
+    val (no_loop, args) = extract_arg "--no-loop" args
+    datatype selection_target = Resume | Select
+    exception UnexpectedArgs
+    val selection =
+      (case args of
+         [] => NONE
+       | [arg, jid] =>
+         (case Int.fromString jid of
+            SOME id => if arg = "--resume" then SOME(Resume, id) else
+                       if arg = "--select" then SOME(Select, id) else
+                       raise UnexpectedArgs
+          | _ => raise UnexpectedArgs)
+       | _ => raise UnexpectedArgs)
+      handle UnexpectedArgs =>
+             die [String.concatWith" "("Unexpected arguments:"::args)]
     val name = file_to_line "name"
                handle IO.Io _ => die["Could not determine worker name. Try uname -norm >name."]
     val () = ensure_bare_clone_exists hol_remote "--single-branch " HOLDIR_git
     val () = ensure_bare_clone_exists cakeml_remote "" CAKEMLDIR_git
-    fun loop select resume =
+    fun loop selection =
       let
         val waiting_ids =
-          case select of SOME id => [id] | NONE =>
-          case resume of SOME id => [id] | NONE =>
+          case selection of SOME(_, id) => [id] | NONE =>
           List.map (Option.valOf o Int.fromString)
             (String.tokens Char.isSpace (API.get Waiting))
       in
         case waiting_ids of [] =>
           if no_wait then diag ["No waiting jobs. Exiting."]
-          else (diag ["No waiting jobs. Will wait for them."]; wait (); loop NONE NONE)
+          else (diag ["No waiting jobs. Will wait for them."]; wait (); loop NONE)
         | (id::_) => (* could prioritise for ids that match our HOL dir *)
           let
             val jid = Int.toString id
             val () = diag ["About to work on ",server,"/job/",jid]
-            val resumed = Option.isSome resume
+            val resumed = case selection of SOME (Resume, _) => true | _ => false
             val claim = Claim(id,name)
             val claim_response = post_response claim
             val response = if resumed then claim_response
@@ -524,7 +540,7 @@ fun main () =
           in
             if no_loop orelse (resumed andalso not success)
             then diag ["Finished work. Exiting."]
-            else (diag ["Finished work. Looking for more."]; loop NONE NONE)
+            else (diag ["Finished work. Looking for more."]; loop NONE)
           end
       end handle e => die ["Unexpected failure: ",exnMessage e]
-  in loop select resume end
+  in loop selection end
