@@ -74,6 +74,9 @@ not considered to need running again, whereas the commits of aborted jobs are
 
 *)
 use "utilLib.sml";
+use "config.sml";
+
+open Config;
 
 structure apiLib = struct
 
@@ -86,8 +89,6 @@ type line = string
 fun check_id f id =
   0 <= id andalso Int.toString id = f
 
-val host = "https://cakeml.org"
-val base_url = "/regression.cgi"
 val server = String.concat[host,base_url]
 val cakeml_token = until_space (file_to_string "cakeml-token")
                    handle IO.Io _ => (

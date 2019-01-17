@@ -303,7 +303,6 @@ fun add_waiting avoid_ids (snapshot,id) =
   in id+1 end
 
 local
-  val to_address = "builds@cakeml.org"
   val email_file = "email.txt"
 in
   fun send_email subject body =
@@ -327,7 +326,7 @@ structure GitHub = struct
   val graphql = system_output (cgi_die 500) o graphql_curl_cmd
 
   fun cakeml_status_endpoint sha =
-    String.concat["/repos/CakeML/cakeml/statuses/",sha]
+    String.concat["/repos/",github_user,"/",github_repo,"/statuses/",sha]
 
   fun status_json id (st,desc) =
     String.concat[
@@ -683,8 +682,6 @@ in
     if List.null ids then []
     else [h2 q, ul [("class","jobs")] (List.map (job_link q) ids)]
 
-  val cakeml_github = "https://github.com/CakeML/cakeml"
-  val hol_github = "https://github.com/HOL-Theorem-Prover/HOL"
   fun cakeml_commit_link s =
     a (String.concat[cakeml_github,"/commit/",s]) s
   fun hol_commit_link s =
