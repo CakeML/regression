@@ -367,8 +367,8 @@ structure GitHub = struct
 end
 
 
-(* we ask for the first 100 PRs/labels below. github requires some
-   limit. we don't expect to hit 100. *)
+(* We ask for the first 100 PRs/labels below. GitHub requires some
+   limit. We don't expect to hit 100. *)
 val cakeml_query = String.concat [
   "{repository(name: \\\"cakeml\\\", owner: \\\"CakeML\\\"){",
   "defaultBranchRef { target { ... on Commit {",
