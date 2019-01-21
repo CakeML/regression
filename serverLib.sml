@@ -152,8 +152,7 @@ fun print_snapshot out (s:snapshot) =
       | PR {num,head_ref,head_obj,base_obj,labels} => (
                print_obj head_obj;
                prl ["#", Int.toString num, " (", head_ref, ")\nMerging into: "];
-               print_obj base_obj;
-               prl (["Labels: "] @ map (fn s => s ^ ", ") labels @ ["\n"])
+               print_obj base_obj
              )
     val () = pr "HOL: "
     val () = print_obj (#hol s)
@@ -367,6 +366,9 @@ structure GitHub = struct
     end
 end
 
+
+(* we ask for the first 100 PRs/labels below. github requires some
+   limit. we don't expect to hit 100. *)
 val cakeml_query = String.concat [
   "{repository(name: \\\"cakeml\\\", owner: \\\"CakeML\\\"){",
   "defaultBranchRef { target { ... on Commit {",
@@ -374,7 +376,7 @@ val cakeml_query = String.concat [
   "pullRequests(baseRefName: \\\"master\\\", first: 100, states: [OPEN]",
   " orderBy: {field: CREATED_AT, direction: DESC}){",
   " nodes { mergeable number headRefName",
-  " labels(first: 10) { nodes { name } }",
+  " labels(first: 100) { nodes { name } }",
   " headRef { target { ... on Commit {",
   " oid messageHeadline committedDate }}}",
   "}}}}" ]
@@ -399,6 +401,10 @@ structure ReadJSON = struct
 
   val replace_acc : 'a basic_reader -> 'a reader =
     fn r => transform (fn x => fn _ => x) r
+
+  fun post_read f (reader:'a basic_reader) : 'b basic_reader
+  = fn ss => let val (v, ss) = reader ss
+    in (f v, ss) end
 
   fun read1 ss c =
     case Substring.getc ss of SOME (c',ss) =>
@@ -488,6 +494,9 @@ structure ReadJSON = struct
             | (SOME v, ss) => loop ss (v::acc))
     in loop ss acc end
 
+  fun read_list read_item acc ss = read_opt_list
+    (post_read SOME read_item) acc ss
+
   fun mergeable_only "MERGEABLE" acc = acc
     | mergeable_only _ _ = NONE
 
@@ -502,10 +511,10 @@ structure ReadJSON = struct
       ,("committedDate", transform with_date read_date)
       ] empty_obj
 
-  val read_label : string option basic_reader = read_dict
-    [("name", transform (fn x => fn _ => SOME x) read_string)] NONE
+  val read_label : string basic_reader = read_dict
+    [("name", replace_acc read_string)] ""
   val read_labels = read_dict
-    [("nodes", read_opt_list read_label)] []
+    [("nodes", read_list read_label)] []
 
   val read_pr : pr option basic_reader =
     read_dict
@@ -521,9 +530,35 @@ structure ReadJSON = struct
 end
 
 val no_test_labels = ["test failing", "no test"]
-fun do_test (PR pr) = List.all (fn lab => List.all (fn lab2 => lab <> lab2)
-    no_test_labels) (#labels pr)
+fun is_no_test_label l = List.exists (equal l) no_test_labels
+fun do_test (PR pr) = not (List.exists is_no_test_label (#labels pr))
   | do_test _ = true
+
+fun read_cakeml_integrations response = let
+    open ReadJSON
+    fun add_master obj acc = (Branch("master",obj)::acc)
+    (* This assumes the PR base always matches master.
+       We could read it from GitHub instead. *)
+    fun add_prs prs [m as (Branch(_,base_obj))] =
+      m :: List.map (PR o with_base_obj base_obj) prs
+    | add_prs _ _ = cgi_die 500 ["add_prs"]
+  in
+    #1 (
+      read_dict
+      [("data",
+        read_dict
+        [("repository",
+          read_dict
+          [("defaultBranchRef",
+            read_dict
+            [("target", transform add_master read_obj)])
+          ,("pullRequests",
+            read_dict
+            [("nodes", transform add_prs (read_opt_list read_pr []))])
+          ])])] []
+      (Substring.full response)
+    )
+  end
 
 local
   open ReadJSON
@@ -531,26 +566,8 @@ in
   fun get_current_snapshots () : snapshot list =
     let
       val response = GitHub.graphql cakeml_query
-      fun add_master obj acc = (Branch("master",obj)::acc)
-      (* This assumes the PR base always matches master.
-         We could read it from GitHub instead. *)
-      fun add_prs prs [m as (Branch(_,base_obj))] =
-        m :: List.filter do_test (List.map (PR o with_base_obj base_obj) prs)
-      | add_prs _ _ = cgi_die 500 ["add_prs"]
-      val (cakeml_integrations,ss) =
-        read_dict
-        [("data",
-          read_dict
-          [("repository",
-            read_dict
-            [("defaultBranchRef",
-              read_dict
-              [("target", transform add_master read_obj)])
-            ,("pullRequests",
-              read_dict
-              [("nodes", transform add_prs (read_opt_list read_pr []))])
-            ])])] []
-        (Substring.full response)
+      val cakeml_integrations = List.filter do_test
+        (read_cakeml_integrations response)
       val response = GitHub.graphql hol_query
       val (hol_obj,ss) =
         read_dict
