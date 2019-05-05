@@ -41,7 +41,7 @@ structure serverLib = struct
 
 open apiLib
 
-val content_type_text = "Content-Type:text/plain\n"
+val content_type_text = "Content-Type: text/plain\n"
 
 fun http_status 200 = ""
   | http_status 400 = "Status:400 Bad Request\n"
@@ -597,7 +597,7 @@ fun read_last_date inp =
         end handle Option => loop acc
   in loop NONE end
 
-val html_response_header = "Content-Type:text/html\n\n<!doctype html>"
+val html_response_header = "Content-Type: text/html\n\n<!doctype html>"
 
 val style_href = "/regression-style.css"
 
