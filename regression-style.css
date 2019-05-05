@@ -1,0 +1,17 @@
+h2, h3, h3 a, a:hover { color: #e80 }
+h2 { text-transform: capitalize; }
+h3 { font-size: 22px; }
+pre { font-size: 20px; }
+pre strong { display: block; margin-top: 1em; }
+pre time { font-size: 18px; }
+time.ago { font-size: 14px; }
+ul.jobs { list-style-type: none; font-size: 24px; padding-left: 1em; margin-top: 0em; }
+ul.jobs li { display: inline-block; padding-right: 2em; }
+ul.jobs li span { font-size: 18px; }
+ul.jobs li span.success { color: #0d0 }
+ul.jobs li span.failure { color: #d00 }
+ul.jobs li span.nowrap { white-space: nowrap; }
+a { color: #337ab7; text-decoration: none; }
+a:hover { text-decoration: underline; }
+footer { margin-top: 2em; }
+footer a { padding-right: 2em; }
