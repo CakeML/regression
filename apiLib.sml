@@ -252,6 +252,18 @@ fun read_job_type inp =
     else "master"
   end
 
+fun read_job_worker inp =
+  let
+    fun read_line () = Option.valOf (TextIO.inputLine inp)
+    fun loop () =
+        let val line = read_line ()
+        in if String.isPrefix "Machine: " line
+           then extract_prefix_trimr "Machine: " line
+           else loop ()
+        end
+  in loop ()
+  end
+
 fun read_secs timing =
   let
     val secs_millisecs = String.tokens (equal #".") timing
