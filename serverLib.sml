@@ -675,21 +675,41 @@ in
       val typ = read_job_type inp
                 handle IO.Io _ => cgi_die 500 ["cannot open ",f]
                      | Option => cgi_die 500 [f," has invalid file format"]
+      val worker = read_job_worker inp
       val format_type = if q = "finished" then span (status_attrs (read_status inp)) else String.concat
-      val last_date = if q = "running" then read_last_date inp else NONE
       val () = TextIO.closeIn inp
+      val inp2 = TextIO.openIn f
+      val {bcml,bhol} = read_bare_snapshot inp2
+             handle Option => cgi_die 500 [f," has invalid file format"]
+      val (head_sha,base_sha) =
+          case bcml of Bbr sha => (sha,sha)
+                     | Bpr {head_sha,base_sha} => (head_sha,base_sha)
+      val last_date = read_last_date inp2
       val ago_string =
-        case last_date of NONE => ""
+        case last_date of NONE => "No date"
         | SOME date => time_ago date
     in
-      span [("class","nowrap")]
-        [a (String.concat[base_url,"/job/",jid]) jid, " ",
-         format_type ["(", typ, ")",ago_string]]
+        [ a (String.concat[base_url,"/job/",jid]) jid
+        , format_type [typ]
+        , ago_string
+        , a (String.concat[cakeml_github,"/commit/",head_sha]) (code (String.substring (head_sha,0,7)))
+        , a (String.concat[cakeml_github,"/commit/",base_sha]) (code (String.substring (base_sha,0,7)))
+        , a (String.concat[hol_github,"/commit/",bhol])        (code (String.substring (bhol,0,7)))
+        , code (until_space worker)
+        ]
     end
 
-  fun html_job_list (q,ids) =
+  fun html_job_list n (q,ids) =
     if List.null ids then []
-    else [h2 q, ul [("class","jobs")] (List.map (job_link q) ids)]
+    else if q = "running"
+    then [h2 q, table [("class","jobs")] [] (List.map (job_link q) ids)]
+    else
+      let
+        val title = element "h2" [] [q," " ,a (String.concat[base_url,"/",q]) "(all)"]
+        val table_titles = ["job","type","time",code "HEAD","merge-base",code "HOL","worker"]
+        val table_rows   = List.map (job_link q) (List.take (ids,n) handle _ => ids)
+      in [title , table [("class","jobs")] table_titles table_rows]
+      end
 
   fun cakeml_commit_link s =
     a (String.concat[cakeml_github,"/commit/",s]) s
@@ -855,7 +875,7 @@ in
 
   fun req_body Overview =
     List.concat
-      (ListPair.map html_job_list
+      (ListPair.map (html_job_list 10)
          (queue_dirs,
           List.map (fn f => f()) queue_funs))
     @ [footer [a host "CakeML main page",
