@@ -647,8 +647,17 @@ structure HTML = struct
   fun status_attrs Success = [("class","success")]
     | status_attrs Failure = [("class","failure")]
     | status_attrs _ = []
+  val code = elt "code"
   val li = elt "li"
   fun ul attrs ls = element "ul" attrs (List.map li ls)
+  val td = elt "td"
+  val th = elt "th"
+  fun tr f attrs ls = element "tr" attrs (List.map f ls)
+  fun table attrs titles rows =
+      let
+        val t = tr th [] titles
+        val r = List.map (tr td []) rows
+      in element "table" attrs ( t :: r) end
   val footer = element "footer" []
 end
 
