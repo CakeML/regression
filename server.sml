@@ -177,6 +177,8 @@ fun get_api () =
         Option.map (Api o G) (get_from_string (String.extract(path_info,4,NONE)))
       else if String.isPrefix "/job/" path_info then
         Option.map (Html o DisplayJob) (id_from_string (String.extract(path_info,5,NONE)))
+      else if String.isPrefix "/queue/" path_info then
+        SOME (Html (DisplayQueue (String.extract(path_info,7,NONE))))
       else if path_info = "/" then SOME (Html Overview)
       else cgi_die 404 [path_info," not found"]
   | (SOME path_info, SOME "POST") =>

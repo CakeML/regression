@@ -661,7 +661,7 @@ structure HTML = struct
   val footer = element "footer" []
 end
 
-datatype html_request = Overview | DisplayJob of id
+datatype html_request = Overview | DisplayJob of id | DisplayQueue of string
 
 local
   open HTML
@@ -705,7 +705,7 @@ in
     then [h2 q, table [("class","jobs")] [] (List.map (job_link q) ids)]
     else
       let
-        val title = element "h2" [] [q," " ,a (String.concat[base_url,"/",q]) "(all)"]
+        val title = element "h2" [] [q," " ,a (String.concat[base_url,"/queue/",q]) "(all)"]
         val table_titles = ["job","type","time",code "HEAD","merge-base",code "HOL","worker"]
         val table_rows   = List.map (job_link q) (List.take (ids,n) handle _ => ids)
       in [title , table [("class","jobs")] table_titles table_rows]
@@ -890,6 +890,11 @@ in
       val s = file_to_string f
     in
       [a base_url "Overview", h3 (a jid (String.concat["Job ",jid])), pre (process jid s)]
+    end
+  | req_body (DisplayQueue q) =
+    let
+      val _ = cgi_assert (List.exists (equal q) queue_dirs) 500 ["Unknown queue: ", q]
+    in a base_url "Overview" :: html_job_list (~1) (q, read_list q ())
     end
 
   fun html_response req =
