@@ -701,8 +701,6 @@ in
 
   fun html_job_list n (q,ids) =
     if List.null ids then []
-    else if q = "running"
-    then [h2 q, table [("class","jobs")] [] (List.map (job_link q) ids)]
     else
       let
         val title = element "h2" [] [q," " ,a (String.concat[base_url,"/queue/",q]) "(all)"]
