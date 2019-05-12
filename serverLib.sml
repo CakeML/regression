@@ -678,13 +678,14 @@ in
       val worker = read_job_worker inp
       val format_type = if q = "finished" then span (status_attrs (read_status inp)) else String.concat
       val () = TextIO.closeIn inp
-      val inp2 = TextIO.openIn f
-      val {bcml,bhol} = read_bare_snapshot inp2
+      val inp = TextIO.openIn f
+      val {bcml,bhol} = read_bare_snapshot inp
              handle Option => cgi_die 500 [f," has invalid file format"]
       val (head_sha,base_sha) =
           case bcml of Bbr sha => (sha,sha)
                      | Bpr {head_sha,base_sha} => (head_sha,base_sha)
-      val last_date = read_last_date inp2
+      val last_date = read_last_date inp
+      val () = TextIO.closeIn inp
       val ago_string =
         case last_date of NONE => "No date"
         | SOME date => time_ago date
@@ -699,13 +700,16 @@ in
         ]
     end
 
-  fun html_job_list n (q,ids) =
+  fun html_job_list lim (q,ids) =
     if List.null ids then []
     else
       let
         val title = element "h2" [] [q," " ,a (String.concat[base_url,"/queue/",q]) "(all)"]
         val table_titles = ["job","type","time",code "HEAD","merge-base",code "HOL","worker"]
-        val table_rows   = List.map (job_link q) (List.take (ids,n) handle _ => ids)
+        val id_list = case lim of
+                          NONE   => ids
+                        | SOME n => List.take (ids,n) handle Subscript => ids
+        val table_rows   = List.map (job_link q) id_list
       in [title , table [("class","jobs")] table_titles table_rows]
       end
 
@@ -873,7 +877,7 @@ in
 
   fun req_body Overview =
     List.concat
-      (ListPair.map (html_job_list 10)
+      (ListPair.map (html_job_list (SOME 10))
          (queue_dirs,
           List.map (fn f => f()) queue_funs))
     @ [footer [a host "CakeML main page",
@@ -892,7 +896,7 @@ in
   | req_body (DisplayQueue q) =
     let
       val _ = cgi_assert (List.exists (equal q) queue_dirs) 500 ["Unknown queue: ", q]
-    in a base_url "Overview" :: html_job_list (~1) (q, read_list q ())
+    in a base_url "Overview" :: html_job_list NONE (q, read_list q ())
     end
 
   fun html_response req =
