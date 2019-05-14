@@ -667,17 +667,34 @@ local
   open HTML
 in
 
+  fun cakeml_commit_link s =
+    a (String.concat[cakeml_github,"/commit/",s]) s
+  fun hol_commit_link s =
+    a (String.concat[hol_github,"/commit/",s]) s
+  fun cakeml_pr_link ss =
+    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
+
+  fun escape_char #"<" = "&lt;"
+    | escape_char #">" = "&gt;"
+    | escape_char c = if Char.isPrint c orelse Char.isSpace c then String.str c else ""
+  val escape = String.translate escape_char
+
   fun job_link q id =
     let
       val jid = Int.toString id
       val f = OS.Path.concat(q,jid)
       val inp = TextIO.openIn f
-      val typ = read_job_type inp
+      val pr_info = read_job_pr inp
                 handle IO.Io _ => cgi_die 500 ["cannot open ",f]
                      | Option => cgi_die 500 [f," has invalid file format"]
       val worker = read_job_worker inp
-      val format_type = if q = "finished" then span (status_attrs (read_status inp)) else String.concat
+      val status = read_status inp
       val () = TextIO.closeIn inp
+      val format_status = if q = "finished" then span (status_attrs status) else String.concat
+      val typ_string =
+        case pr_info of NONE => format_status ["master"]
+                      | SOME (pr, branch) => String.concat[format_status [cakeml_pr_link pr],
+                                                           escape (Substring.string branch)]
       val inp = TextIO.openIn f
       val {bcml,bhol} = read_bare_snapshot inp
              handle Option => cgi_die 500 [f," has invalid file format"]
@@ -691,7 +708,7 @@ in
         | SOME date => time_ago date
     in
         [ a (String.concat[base_url,"/job/",jid]) jid
-        , format_type [typ]
+        , typ_string
         , ago_string
         , a (String.concat[cakeml_github,"/commit/",head_sha]) (code (String.substring (head_sha,0,7)))
         , a (String.concat[cakeml_github,"/commit/",base_sha]) (code (String.substring (base_sha,0,7)))
@@ -712,18 +729,6 @@ in
         val table_rows   = List.map (job_link q) id_list
       in [title , table [("class","jobs")] table_titles table_rows]
       end
-
-  fun cakeml_commit_link s =
-    a (String.concat[cakeml_github,"/commit/",s]) s
-  fun hol_commit_link s =
-    a (String.concat[hol_github,"/commit/",s]) s
-  fun cakeml_pr_link ss =
-    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
-
-  fun escape_char #"<" = "&lt;"
-    | escape_char #">" = "&gt;"
-    | escape_char c = if Char.isPrint c orelse Char.isSpace c then String.str c else ""
-  val escape = String.translate escape_char
 
   fun format_rusage s =
     let
@@ -798,9 +803,9 @@ in
       val (line,acc) =
         if String.isPrefix "#" line then
           let
-            val ss = Substring.full line
-            val (pr,rest) = Substring.splitl (not o Char.isSpace) ss
-            val line = String.concat[cakeml_pr_link pr, escape (Substring.string rest)]
+            val (pr, branch) = extract_word line
+            val line = String.concat[cakeml_pr_link pr,
+                                     escape (Substring.string branch)]
             val acc = line::acc
             val prefix = "Merging into: "
             val sha = extract_prefix_trimr prefix (read_line ()) handle Option => cgi_die 500 ["failed to find line ",prefix]
