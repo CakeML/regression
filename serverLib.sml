@@ -671,7 +671,9 @@ in
     a (String.concat[cakeml_github,"/commit/",s]) s
   fun hol_commit_link s =
     a (String.concat[hol_github,"/commit/",s]) s
-  fun cakeml_pr_link ss =
+  fun cakeml_pr_link s =
+    a (String.concat[cakeml_github,"/pull/",s]) s
+  fun cakeml_pr_link_number ss =
     a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
 
   fun escape_char #"<" = "&lt;"
@@ -692,9 +694,8 @@ in
       val () = TextIO.closeIn inp
       val format_status = if q = "finished" then span (status_attrs status) else String.concat
       val typ_string =
-        case pr_info of NONE => format_status ["master"]
-                      | SOME (pr, branch) => String.concat[format_status [cakeml_pr_link pr],
-                                                           escape (Substring.string branch)]
+        case pr_info of NONE => "master"
+                      | SOME (_, branch) => cakeml_pr_link (escape (Substring.string branch))
       val inp = TextIO.openIn f
       val {bcml,bhol} = read_bare_snapshot inp
              handle Option => cgi_die 500 [f," has invalid file format"]
@@ -708,7 +709,7 @@ in
         | SOME date => time_ago date
     in
         [ a (String.concat[base_url,"/job/",jid]) jid
-        , typ_string
+        , format_status [typ_string]
         , ago_string
         , a (String.concat[cakeml_github,"/commit/",head_sha]) (code (String.substring (head_sha,0,7)))
         , a (String.concat[cakeml_github,"/commit/",base_sha]) (code (String.substring (base_sha,0,7)))
@@ -722,7 +723,7 @@ in
     else
       let
         val title = element "h2" [] [q," " ,a (String.concat[base_url,"/queue/",q]) "(all)"]
-        val table_titles = ["job","type","time",code "HEAD","merge-base",code "HOL","worker"]
+        val table_titles = ["job","branch","time",code "HEAD","merge-base",code "HOL","worker"]
         val id_list = case lim of
                           NONE   => ids
                         | SOME n => List.take (ids,n) handle Subscript => ids
@@ -804,7 +805,7 @@ in
         if String.isPrefix "#" line then
           let
             val (pr, branch) = extract_word line
-            val line = String.concat[cakeml_pr_link pr,
+            val line = String.concat[cakeml_pr_link_number pr,
                                      escape (Substring.string branch)]
             val acc = line::acc
             val prefix = "Merging into: "
