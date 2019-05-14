@@ -121,12 +121,16 @@ fun finish id =
     val sha = get_head_sha (read_bare_snapshot inp)
     val status = read_status inp
     val inp = (TextIO.closeIn inp; TextIO.openIn new)
-    val typ = read_job_type inp
+    val pr_info = read_job_pr inp
+    val branch =
+      case read_job_pr inp of
+        NONE => "master"
+      | SOME (_, branch) => Substring.string branch
   in
     TextIO.closeIn inp;
     Posix.IO.close fd;
     GitHub.set_status f sha status;
-    send_email (String.concat[status_to_string status,": Job ",f," (",typ,")"])
+    send_email (String.concat[status_to_string status,": Job ",f," (",branch,")"])
                (String.concat["See ",server,"/job/",f,"\n"]);
     ()
   end

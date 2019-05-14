@@ -240,7 +240,7 @@ fun read_bare_snapshot inp =
     , bhol = hol_sha }
   end
 
-fun read_job_type inp =
+fun read_job_pr inp =
   let
     fun read_line () = Option.valOf (TextIO.inputLine inp)
     val _ = read_line () (* CakeML *)
@@ -248,8 +248,8 @@ fun read_job_type inp =
     val line = read_line ()
   in
     if String.isPrefix "#" line then
-      Substring.string(#1(extract_word line))
-    else "master"
+      SOME (extract_word line)
+    else NONE
   end
 
 fun read_job_worker inp =
