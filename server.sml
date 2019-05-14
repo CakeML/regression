@@ -130,7 +130,7 @@ fun finish id =
     TextIO.closeIn inp;
     Posix.IO.close fd;
     GitHub.set_status f sha status;
-    send_email (String.concat[status_to_string status,": Job ",f," (",branch,")"])
+    send_email (String.concat[status_to_string status,": Job ",f," ",branch])
                (String.concat["See ",server,"/job/",f,"\n"]);
     ()
   end
