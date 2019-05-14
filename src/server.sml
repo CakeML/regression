@@ -31,7 +31,7 @@ Current snapshots from GitHub:
     HOL:
       - branch "master"
 *)
-use "serverLib.sml";
+use "lib/serverLib.sml";
 
 open serverLib
 

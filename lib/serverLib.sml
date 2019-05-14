@@ -35,7 +35,7 @@
     ...
 *)
 
-use "apiLib.sml";
+use "lib/apiLib.sml";
 
 structure serverLib = struct
 

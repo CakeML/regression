@@ -14,7 +14,7 @@
   and >>file instead of >file appends to file instead of truncating it.
 *)
 
-use "apiLib.sml"; open apiLib
+use "lib/apiLib.sml"; open apiLib
 
 fun usage_string name = String.concat[
   name, " [options]\n\n",

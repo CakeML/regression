@@ -73,7 +73,7 @@ not considered to need running again, whereas the commits of aborted jobs are
 (as long as they are still the latest commits).
 
 *)
-use "utilLib.sml";
+use "lib/utilLib.sml";
 use "config.sml";
 
 open Config;
