@@ -693,9 +693,10 @@ in
       val status = read_status inp
       val () = TextIO.closeIn inp
       val format_status = if q = "finished" then span (status_attrs status) else String.concat
+      val trim_ends = Substring.triml 1 o Substring.trimr 1
       val typ_string =
         case pr_info of NONE => "master"
-                      | SOME (_, branch) => cakeml_pr_link (escape (Substring.string branch))
+                      | SOME (_, branch) => cakeml_pr_link (escape (Substring.string (trim_ends branch)))
       val inp = TextIO.openIn f
       val {bcml,bhol} = read_bare_snapshot inp
              handle Option => cgi_die 500 [f," has invalid file format"]
