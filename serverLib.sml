@@ -693,7 +693,8 @@ in
       val status = read_status inp
       val () = TextIO.closeIn inp
       val format_status = if q = "finished" then span (status_attrs status) else String.concat
-      val trim_ends = Substring.triml 1 o Substring.trimr 1
+      val trim_ws = Substring.dropl Char.isSpace o Substring.dropr Char.isSpace
+      val trim_ends = Substring.triml 1 o Substring.trimr 1 o trim_ws
       val typ_string =
         case pr_info of NONE => "master"
                       | SOME (pr, branch) => cakeml_pr_link pr (escape (Substring.string (trim_ends branch)))
