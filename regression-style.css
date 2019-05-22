@@ -11,13 +11,10 @@ table.jobs { font-size: 24px; padding-left: 1em; margin-top: 0em; border-spacing
 table.jobs td  { border-bottom: 1px solid #ddd }
 table.jobs th  { border-bottom: 1px solid #777 }
 table.jobs tr th, table.jobs tr td { font-size: 18px; padding: 1em; padding-bottom: 0em}
-table.jobs tr span.success { color: #0d0 }
-table.jobs tr span.failure { color: #d00 }
-table.jobs tr span.nowrap { white-space: nowrap; }
+table.jobs tr a.success { color: #0d0 }
+table.jobs tr a.failure { color: #d00 }
 ul.jobs { font-size: 24px; padding-left: 1em; margin-top: 0em; }
 ul.jobs li { padding-right: 2em; }
-ul.jobs li span { font-size: 18px; padding-left: 1em}
-ul.jobs li span.nowrap { white-space: nowrap; }
 a { color: #337ab7; text-decoration: none; }
 a:hover { text-decoration: underline; }
 footer { margin-top: 2em; }

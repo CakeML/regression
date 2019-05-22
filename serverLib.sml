@@ -642,8 +642,8 @@ structure HTML = struct
   fun time d = element "time" [("datetime",machine_date d)] [pretty_date d]
   fun time_ago d = element "time" [("datetime",machine_date d),("class","ago")] [" [",pretty_date d,"]"]
   fun duration s = element "time" [("datetime",machine_secs s),("class","duration")] [Int.toString s,"s"]
-  fun a href body = element "a" [("href",href)] [body]
-  fun span attrs strs = element "span" attrs strs
+  fun a_attrs attrs href body = element "a" (("href",href)::attrs) [body]
+  val a = a_attrs []
   fun status_attrs Success = [("class","success")]
     | status_attrs Failure = [("class","failure")]
     | status_attrs _ = []
@@ -671,8 +671,8 @@ in
     a (String.concat[cakeml_github,"/commit/",s]) s
   fun hol_commit_link s =
     a (String.concat[hol_github,"/commit/",s]) s
-  fun cakeml_pr_link pr branch =
-    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 pr)]) branch
+  fun cakeml_pr_link attrs pr branch =
+    a_attrs attrs (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 pr)]) branch
   fun cakeml_pr_link_number pr =
     a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 pr)]) (Substring.string pr)
 
@@ -692,12 +692,12 @@ in
       val worker = read_job_worker inp
       val status = read_status inp
       val () = TextIO.closeIn inp
-      val format_status = if q = "finished" then span (status_attrs status) else String.concat
+      val typ_attrs = if q = "finished" then status_attrs status else []
       val trim_ws = Substring.dropl Char.isSpace o Substring.dropr Char.isSpace
       val trim_ends = Substring.triml 1 o Substring.trimr 1 o trim_ws
       val typ_string =
-        case pr_info of NONE => "master"
-                      | SOME (pr, branch) => cakeml_pr_link pr (escape (Substring.string (trim_ends branch)))
+        case pr_info of NONE => a_attrs typ_attrs (String.concat[cakeml_github,"/tree/master"]) "master"
+                      | SOME (pr, branch) => cakeml_pr_link typ_attrs pr (escape (Substring.string (trim_ends branch)))
       val inp = TextIO.openIn f
       val {bcml,bhol} = read_bare_snapshot inp
              handle Option => cgi_die 500 [f," has invalid file format"]
@@ -711,7 +711,7 @@ in
         | SOME date => time_ago date
     in
         [ a (String.concat[base_url,"/job/",jid]) jid
-        , format_status [typ_string]
+        , typ_string
         , ago_string
         , a (String.concat[cakeml_github,"/commit/",head_sha]) (code (String.substring (head_sha,0,7)))
         , a (String.concat[cakeml_github,"/commit/",base_sha]) (code (String.substring (base_sha,0,7)))
