@@ -671,10 +671,10 @@ in
     a (String.concat[cakeml_github,"/commit/",s]) s
   fun hol_commit_link s =
     a (String.concat[hol_github,"/commit/",s]) s
-  fun cakeml_pr_link s =
-    a (String.concat[cakeml_github,"/pull/",s]) s
-  fun cakeml_pr_link_number ss =
-    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 ss)]) (Substring.string ss)
+  fun cakeml_pr_link pr branch =
+    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 pr)]) branch
+  fun cakeml_pr_link_number pr =
+    a (String.concat[cakeml_github,"/pull/",Substring.string(Substring.triml 1 pr)]) (Substring.string pr)
 
   fun escape_char #"<" = "&lt;"
     | escape_char #">" = "&gt;"
@@ -696,7 +696,7 @@ in
       val trim_ends = Substring.triml 1 o Substring.trimr 1
       val typ_string =
         case pr_info of NONE => "master"
-                      | SOME (_, branch) => cakeml_pr_link (escape (Substring.string (trim_ends branch)))
+                      | SOME (pr, branch) => cakeml_pr_link pr (escape (Substring.string (trim_ends branch)))
       val inp = TextIO.openIn f
       val {bcml,bhol} = read_bare_snapshot inp
              handle Option => cgi_die 500 [f," has invalid file format"]
