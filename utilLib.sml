@@ -43,6 +43,8 @@ structure utilLib = struct
 
   fun up p = OS.Path.concat(OS.Path.parentArc,p)
 
+  val trim_ws = Substring.dropl Char.isSpace o Substring.dropr Char.isSpace
+
   fun trimr s =
     Substring.string(Substring.dropr Char.isSpace (Substring.full s))
 

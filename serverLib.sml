@@ -693,7 +693,6 @@ in
       val status = read_status inp
       val () = TextIO.closeIn inp
       val typ_attrs = if q = "finished" then status_attrs status else []
-      val trim_ws = Substring.dropl Char.isSpace o Substring.dropr Char.isSpace
       val trim_ends = Substring.triml 1 o Substring.trimr 1 o trim_ws
       val typ_string =
         case pr_info of NONE => a_attrs typ_attrs (String.concat[cakeml_github,"/tree/master"]) "master"

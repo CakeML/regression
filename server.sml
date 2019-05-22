@@ -125,7 +125,7 @@ fun finish id =
     val branch =
       case read_job_pr inp of
         NONE => "master"
-      | SOME (_, branch) => Substring.string branch
+      | SOME (_, branch) => Substring.string (trim_ws branch)
   in
     TextIO.closeIn inp;
     Posix.IO.close fd;
