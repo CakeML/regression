@@ -121,7 +121,6 @@ fun finish id =
     val sha = get_head_sha (read_bare_snapshot inp)
     val status = read_status inp
     val inp = (TextIO.closeIn inp; TextIO.openIn new)
-    val pr_info = read_job_pr inp
     val branch =
       case read_job_pr inp of
         NONE => "master"
