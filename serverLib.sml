@@ -574,7 +574,7 @@ in
           read_dict
           [("repository",
             read_dict
-            [("defaultBranchRef",
+            [("ref",
               read_dict
               [("target", replace_acc read_obj)])])])]
         empty_obj (Substring.full response)
