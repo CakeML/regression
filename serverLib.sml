@@ -382,7 +382,7 @@ val cakeml_query = String.concat [
 
 val hol_query = String.concat [
   "{repository(name: \\\"HOL\\\", owner: \\\"HOL-Theorem-Prover\\\"){",
-  "defaultBranchRef { target { ... on Commit {",
+  "ref(qualifiedName: \\\"refs/heads/master\\\") { target { ... on Commit {",
   " oid messageHeadline committedDate }}}}}" ]
 
 structure ReadJSON = struct
