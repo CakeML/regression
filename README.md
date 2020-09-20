@@ -21,4 +21,18 @@ Small library of useful code.
 Worker that claims and runs regression test jobs.
 
 [Dockerfile](Dockerfile):
-Worker docker container for easy deployment `docker run -d agomezl/oven`.
+Worker docker container for easy deployment:
+
+    docker build -t oven .
+    # Unlimited RAM (only for dedicated machines w/ ample swap)
+    docker run -d --hostname=my-builder-name --name=container-name oven
+
+    # OR: Limit RAM to 70,000 MB
+    docker run -d --hostname=my-builder-name --name=container-name \
+        -e POLY_CLINE_OPTIONS="--maxheap 70000" oven
+
+    # Maintenance commands
+    docker exec container-name /oven/worker --help
+
+    # Skip 20 minute timeout after a refresh
+    docker exec container-name killall curl
