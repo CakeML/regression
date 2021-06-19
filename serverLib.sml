@@ -365,6 +365,28 @@ structure GitHub = struct
     end
 end
 
+structure Slack = struct
+  val token = until_space (file_to_string "slack-token")
+  val channel = "CCKESLBJQ"
+  val postMessage_endpoint = "https://slack.com/api/chat.postMessage"
+  fun postMessage_curl_cmd text = (curl_path,["--silent","--show-error",
+    "--header",String.concat["Authorization: Bearer ",token],
+    "--header","Content-type: application/json;charset=utf-8",
+    "--request","POST",
+    "--data",String.concat["{\"channel\":\"",channel,"\",",
+                           "\"text\":\"",text,"\"}"],
+    postMessage_endpoint])
+  fun send_message text =
+    let
+      val text = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) text
+      val cmd = postMessage_curl_cmd text
+      val response = system_output (cgi_die 500) cmd
+    in
+      cgi_assert
+        (String.isPrefix "{\"ok\":true" response)
+        500 ["Error sending Slack message\n",response]
+    end
+end
 
 (* We ask for the first 100 PRs/labels below. GitHub requires some
    limit. We don't expect to hit 100. *)

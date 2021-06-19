@@ -125,12 +125,14 @@ fun finish id =
       case read_job_pr inp of
         NONE => "master"
       | SOME (_, branch) => Substring.string (trim_ws branch)
+    val subject = String.concat[status_to_string status,": Job ",f," ",branch]
+    val body = String.concat["See ",server,"/job/",f]
   in
     TextIO.closeIn inp;
     Posix.IO.close fd;
     GitHub.set_status f sha status;
-    send_email (String.concat[status_to_string status,": Job ",f," ",branch])
-               (String.concat["See ",server,"/job/",f,"\n"]);
+    send_email subject (String.concat[body,"\n"]);
+    Slack.send_message (String.concat[subject," - ",body]);
     ()
   end
 
