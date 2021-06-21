@@ -302,18 +302,22 @@ fun add_waiting avoid_ids (snapshot,id) =
     val () = TextIO.closeOut out
   in id+1 end
 
-local
-  val email_file = "email.txt"
-in
-  fun send_email subject body =
-    let
-      val () = output_to_file (email_file,body)
-      val mail_cmd = ("/usr/bin/mail",
-        ["-s",subject,"-r",to_address,"-m",email_file,"-.",to_address])
-    in
-      system_output (cgi_die 500) mail_cmd
-    end
-end
+fun send_email subject body =
+  let
+    val proc = Unix.execute ("/usr/bin/sendmail", ["-t"])
+               handle e as OS.SysErr _ =>
+                 cgi_die 500 ["sendmail failed to execute", "\n", exnMessage e]
+    val out = Unix.textOutstreamOf proc
+    val () = TextIO.output(out, String.concat["To: ", to_address, "\n"])
+    val () = TextIO.output(out, String.concat["From: ", to_address, "\n"])
+    val () = TextIO.output(out, String.concat["Subject: ", subject, "\n"])
+    val () = TextIO.output(out, String.concat["\n", body])
+    val () = TextIO.closeOut(out)
+    val status = Unix.reap proc
+  in
+    if OS.Process.isSuccess status then ()
+    else cgi_die 500 ["sendmail failed"]
+  end
 
 structure GitHub = struct
   val token = until_space (file_to_string "github-token")
