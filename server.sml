@@ -131,8 +131,8 @@ fun finish id =
     TextIO.closeIn inp;
     Posix.IO.close fd;
     GitHub.set_status f sha status;
-    send_email subject (String.concat[body,"\n"]);
     Slack.send_message (String.concat[subject," - ",body]);
+    send_email subject (String.concat[body,"\n"]);
     ()
   end
 
