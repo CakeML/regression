@@ -369,21 +369,23 @@ structure GitHub = struct
     end
 end
 
+
+ok%  
+
 structure Slack = struct
-  val token = until_space (file_to_string "slack-token")
-  val channel = "CCKESLBJQ"
-  val postMessage_endpoint = "https://slack.com/api/chat.postMessage"
+  val url = until_space (file_to_string "custom-uri")
+  val postMessage_endpoint = "https://hooks.slack.com/services/"
   fun postMessage_curl_cmd text = (curl_path,["--silent","--show-error",
-    "--header",String.concat["Authorization: Bearer ",token],
-    "--header","Content-type: application/json;charset=utf-8",
     "--request","POST",
+    "--header","Content-type: application/json;charset=utf-8",
     "--data",String.concat["{\"channel\":\"",channel,"\",",
                            "\"text\":\"",text,"\"}"],
-    postMessage_endpoint])
+    String.concat [postMessage_endpoint, url]])
   fun send_message text =
     let
       val text = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) text
       val cmd = postMessage_curl_cmd text
+      val _ = print cmd 
       val response = system_output (cgi_die 500) cmd
     in
       cgi_assert
