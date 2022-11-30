@@ -369,7 +369,6 @@ structure GitHub = struct
     end
 end
 
-
 structure Slack = struct
   val url = until_space (file_to_string "custom-uri")
   val postMessage_endpoint = "https://hooks.slack.com/services/"
@@ -382,7 +381,6 @@ structure Slack = struct
     let
       val text = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) text
       val cmd = postMessage_curl_cmd text
-      val _ = print cmd 
       val response = system_output (cgi_die 500) cmd
     in
       cgi_assert
