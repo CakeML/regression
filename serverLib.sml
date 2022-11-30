@@ -384,7 +384,7 @@ structure Slack = struct
       val response = system_output (cgi_die 500) cmd
     in
       cgi_assert
-        (String.isPrefix "{\"ok\":true" response)
+        (String.isPrefix "ok" response)
         500 ["Error sending Slack message\n",response]
     end
 end
