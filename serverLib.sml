@@ -370,16 +370,13 @@ structure GitHub = struct
 end
 
 
-ok%  
-
 structure Slack = struct
   val url = until_space (file_to_string "custom-uri")
   val postMessage_endpoint = "https://hooks.slack.com/services/"
   fun postMessage_curl_cmd text = (curl_path,["--silent","--show-error",
     "--request","POST",
     "--header","Content-type: application/json;charset=utf-8",
-    "--data",String.concat["{\"channel\":\"",channel,"\",",
-                           "\"text\":\"",text,"\"}"],
+    "--data",String.concat["{\"text\":\"",text,"\"}"],
     String.concat [postMessage_endpoint, url]])
   fun send_message text =
     let
