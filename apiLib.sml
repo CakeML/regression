@@ -114,7 +114,7 @@ fun post_response Refresh = "Refreshed\n"
   | post_response (Log _) = "Logged\n"
   | post_response (Upload _) = "Uploaded\n"
 
-fun percent_decode s =
+fun formdata_decode s =
   let
     fun loop ss acc =
       let
@@ -131,9 +131,10 @@ fun percent_decode s =
             loop ss (c::chunk::acc)
           end
       end
+    val plus2space = CharVector.map (fn #"+" => #" " | c => c)
   in
-    loop (Substring.full s) []
-    handle e => (TextIO.output(TextIO.stdErr,String.concat["percent decode failed on ",s,"\n",exnMessage e,"\n"]); raise e)
+    loop (Substring.full (plus2space s)) []
+    handle e => (TextIO.output(TextIO.stdErr,String.concat["form-data decode failed on ",s,"\n",exnMessage e,"\n"]); raise e)
   end
 
 fun api_to_string (G Waiting) = "/waiting"
@@ -165,7 +166,7 @@ fun read_query prefix len =
   case String.tokens (equal #"&") (TextIO.inputN(TextIO.stdIn,len))
   of [s] =>
     if String.isPrefix (String.concat[prefix,"="]) s then
-      SOME (percent_decode (String.extract(s,String.size prefix + 1,NONE)))
+      SOME (formdata_decode (String.extract(s,String.size prefix + 1,NONE)))
     else NONE
   | _ => NONE
 
