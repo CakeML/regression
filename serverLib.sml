@@ -389,6 +389,27 @@ structure Slack = struct
     end
 end
 
+structure Discord = struct
+  val discord_webhook = until_space (file_to_string "discord-webhook")
+  val postMessage_endpoint = "https://discord.com/api/webhooks/"
+  fun postMessage_curl_cmd text = (curl_path,["--silent","--show-error",
+    "--request","POST",
+    "--header","Content-type: application/json;charset=utf-8",
+    "--write-out","%{http_code}",
+    "--data",String.concat["{\"content\":\"",text,"\", \"flags\":4}"],
+    String.concat [postMessage_endpoint, discord_webhook]])
+  fun send_message text =
+    let
+      val text = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) text
+      val cmd = postMessage_curl_cmd text
+      val response = system_output (cgi_die 500) cmd
+    in
+      cgi_assert
+        (String.isPrefix "204" response)
+        500 ["Error sending Discord message\n",response]
+    end
+end
+
 (* We ask for the first 100 PRs/labels below. GitHub requires some
    limit. We don't expect to hit 100. *)
 val cakeml_query = String.concat [

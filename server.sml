@@ -127,11 +127,13 @@ fun finish id =
       | SOME (_, branch) => Substring.string (trim_ws branch)
     val subject = String.concat[status_to_string status,": Job ",f," ",branch]
     val body = String.concat["See ",server,"/job/",f]
+    val message = String.concat[subject," - ",body]
   in
     TextIO.closeIn inp;
     Posix.IO.close fd;
     GitHub.set_status f sha status;
-    Slack.send_message (String.concat[subject," - ",body]);
+    Slack.send_message message;
+    Discord.send_message message;
     send_email subject (String.concat[body,"\n"]);
     ()
   end

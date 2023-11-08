@@ -1,4 +1,6 @@
 *-token
+custom-uri
+discord-webhook
 poll
 api
 worker
