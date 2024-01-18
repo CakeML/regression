@@ -118,7 +118,9 @@ fun finish id =
         else OS.FileSys.rename{old = old, new = new}
       else cgi_die 409 ["job ",f," is not running: cannot finish"]
     val inp = TextIO.openIn new
-    val sha = get_head_sha (read_bare_snapshot inp)
+    val snapshot = read_bare_snapshot inp
+    val cakeml_sha = get_head_sha snapshot
+    val hol_sha = get_hol_sha snapshot
     val status = read_status inp
     val inp = (TextIO.closeIn inp; TextIO.openIn new)
     val branch =
@@ -131,10 +133,13 @@ fun finish id =
   in
     TextIO.closeIn inp;
     Posix.IO.close fd;
-    GitHub.set_status f sha status;
+    GitHub.set_status f cakeml_sha status;
     Slack.send_message message;
     Discord.send_message message;
     send_email subject (String.concat[body,"\n"]);
+    if status = Success andalso branch = "master"
+    then (GitHub.create_release f cakeml_sha hol_sha; GitHub.upload_assets f)
+    else ();
     ()
   end
 
