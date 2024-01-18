@@ -267,6 +267,7 @@ fun timings_of_dir dir files =
 
 fun get_head_sha ({bcml,...}:bare_snapshot) =
   case bcml of Bbr sha => sha | Bpr {head_sha,...} => head_sha
+fun get_hol_sha  ({bhol,...}:bare_snapshot) = bhol
 
 fun same_snapshot q = equal o read_job_snapshot q
 fun same_head q id =
@@ -339,16 +340,34 @@ structure GitHub = struct
       "\"description\":\"",desc,"\",",
       "\"context\":\"cakeml-regression-test\"}"]
 
+  val cakeml_release_endpoint =
+    String.concat ["/repos/", github_user, "/", github_repo, "/releases"]
+
+  fun tag id = "v" ^ id
+
+  fun release_json id cakeml_sha hol_sha =
+    String.concat [
+      "{\"tag_name\":\"", tag id, "\",",
+      "\"target_commitish\":\"", cakeml_sha, "\",",
+      "\"name\":\"", "CakeML ", tag id, "\",",
+      "\"body\":\"Corresponding HOL commit: HOL-Theorem-Prover/HOL@",
+                  hol_sha, "\"}"
+    ]
+
   val rest_endpoint = "https://api.github.com"
   val rest_version = "application/vnd.github.v3+json"
-  fun rest_curl_cmd endpoint data = (curl_path,["--silent","--show-error",
-    "--header",String.concat["Authorization: Bearer ",token],
-    "--header",String.concat["Accept: ",rest_version],
+  fun curl_cmd content = (curl_path, [
+    "--silent",
+    "--show-error",
+    "--header", String.concat ["Authorization: Bearer ", token],
+    "--header", String.concat ["Accept: ", rest_version],
     "--write-out", "%{http_code}",
     "--output", "/dev/null",
-    "--request","POST",
-    "--data",data,
-    String.concat[rest_endpoint,endpoint]])
+    "--request","POST"
+    ] @ content)
+
+  fun rest_curl_cmd endpoint data =
+    curl_cmd ["--data", data, String.concat [rest_endpoint, endpoint]]
 
   fun status Pending = ("pending","regression test in progress")
     | status Success = ("success","regression test succeeded")
@@ -367,6 +386,47 @@ structure GitHub = struct
         (String.isPrefix "201" response)
         500 ["Error setting GitHub commit status\n",response]
     end
+
+  fun create_release id cakeml_sha hol_sha =
+    let val cmd = rest_curl_cmd cakeml_release_endpoint
+                    (release_json id cakeml_sha hol_sha)
+        val response = system_output (cgi_die 500) cmd
+    in
+      cgi_assert
+        (String.isPrefix "201" response)
+        500 ["Error creating GitHub release\n",response]
+    end
+
+  val upload_endpoint = "https://uploads.github.com"
+
+  fun cakeml_upload_endpoint id asset =
+    String.concat [
+      upload_endpoint, "/repos/", github_user, "/", github_repo,
+      "/releases/", tag id, "/", "assets?name=", asset
+    ]
+
+  fun upload_curl_cmd id asset =
+    let val asset_dir = OS.Path.concat(artefacts_dir, id)
+        val asset_path = OS.Path.joinDirFile {dir=asset_dir, file=asset}
+    in
+      curl_cmd [
+        "--header", "Content-Type: application/octet-stream",
+        "--data-binary", "@" ^ asset_path,
+        cakeml_upload_endpoint id asset]
+    end
+
+  val assets = ["cake-x64-64.tar.gz", "cake-x64-32.tar.gz"]
+
+  fun upload_assets id =
+    let val cmds = List.map (upload_curl_cmd id) assets
+        val responses = List.map (system_output (cgi_die 500)) cmds
+    in
+      List.app
+        (fn r => cgi_assert (String.isPrefix "201" r)
+                  500 ["Error uploading GitHub release asset\n", r])
+        responses
+    end
+
 end
 
 structure Slack = struct
