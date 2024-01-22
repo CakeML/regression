@@ -320,6 +320,149 @@ fun send_email subject body =
     else cgi_die 500 ["sendmail failed"]
   end
 
+structure ReadJSON = struct
+
+  exception ReadFailure of string
+  fun die ls = raise (ReadFailure (String.concat ls))
+
+  type 'a basic_reader = substring -> ('a * substring)
+  type 'a reader = 'a -> 'a basic_reader
+
+  fun transform f (reader:'a basic_reader) : 'b reader
+  = fn acc => fn ss =>
+    let val (v, ss) = reader ss
+    in (f v acc, ss) end
+
+  val replace_acc : 'a basic_reader -> 'a reader =
+    fn r => transform (fn x => fn _ => x) r
+
+  fun post_read f (reader:'a basic_reader) : 'b basic_reader
+  = fn ss => let val (v, ss) = reader ss
+    in (f v, ss) end
+
+  fun read1 ss c =
+    case Substring.getc ss of SOME (c',ss) =>
+      if c = c' then ss
+      else die ["expected ",String.str c," got ",String.str c']
+    | _ => die ["expected ",String.str c," got nothing"]
+
+  val read_string : string basic_reader = fn ss =>
+    let
+      val ss = read1 ss #"\""
+      fun loop ss acc =
+        let
+          val (chunk,ss) = Substring.splitl (not o equal #"\"") ss
+          val z = Substring.size chunk
+          val (c,ss) = Substring.splitAt(ss,1)
+        in
+          if 0 < z andalso Substring.sub(chunk,z-1) = #"\\" then
+              loop ss (c::chunk::acc)
+          else
+            (Option.valOf(String.fromCString(Substring.concat(List.rev(chunk::acc)))),
+             ss)
+        end
+    in
+      loop ss []
+    end
+
+  val int_from_ss = Option.valOf o Int.fromString o Substring.string
+
+  fun bare_read_date ss =
+    let
+      val (year,ss) = Substring.splitAt(ss,4)
+      val ss = read1 ss #"-"
+      val (month,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #"-"
+      val (day,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #"T"
+      val (hour,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #":"
+      val (minute,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #":"
+      val (second,ss) = Substring.splitAt(ss,2)
+      val ss = read1 ss #"Z"
+      val date = Date.date {
+        day = int_from_ss day,
+        hour = int_from_ss hour,
+        minute = int_from_ss minute,
+        month = month_from_int (int_from_ss month),
+        offset = SOME (Time.zeroTime),
+        second = int_from_ss second,
+        year = int_from_ss year }
+    in (date, ss) end
+    handle Subscript => raise Option | ReadFailure _ => raise Option
+
+  fun read_date ss =
+    let
+      val (s, ss) = read_string ss
+      val (date, e) = bare_read_date (Substring.full s)
+      val () = if Substring.isEmpty e then () else raise Option
+    in (date, ss) end
+
+  fun read_dict (dispatch : (string * 'a reader) list) : 'a reader
+  = fn acc => fn ss =>
+    let
+      val ss = read1 ss #"{"
+      fun loop ss acc =
+        case Substring.getc ss of
+          SOME(#"}",ss) => (acc, ss)
+        | SOME(#",",ss) => loop ss acc
+        | _ =>
+          let
+            val (key, ss) = read_string ss
+            val ss = read1 ss #":"
+            val (acc, ss) = assoc key dispatch acc ss
+          in loop ss acc end
+    in loop ss acc end
+
+  fun read_opt_list read_item acc ss =
+    let
+      val ss = read1 ss #"["
+      fun loop ss acc =
+        case Substring.getc ss of
+          SOME(#"]",ss) => (List.rev acc, ss)
+        | SOME(#",",ss) => loop ss acc
+        | _ =>
+          (case read_item ss
+           of (NONE, ss) => loop ss acc
+            | (SOME v, ss) => loop ss (v::acc))
+    in loop ss acc end
+
+  fun read_list read_item acc ss = read_opt_list
+    (post_read SOME read_item) acc ss
+
+  fun mergeable_only "MERGEABLE" acc = acc
+    | mergeable_only _ _ = NONE
+
+  fun read_number ss =
+    let val (n,ss) = Substring.splitl Char.isDigit ss
+    in (int_from_ss n, ss) end
+
+  val read_obj : obj basic_reader =
+    read_dict
+      [("oid", transform with_hash read_string)
+      ,("messageHeadline", transform with_message read_string)
+      ,("committedDate", transform with_date read_date)
+      ] empty_obj
+
+  val read_label : string basic_reader = read_dict
+    [("name", replace_acc read_string)] ""
+  val read_labels = read_dict
+    [("nodes", read_list read_label)] []
+
+  val read_pr : pr option basic_reader =
+    read_dict
+      [("mergeable", transform mergeable_only read_string)
+      ,("number", transform (Option.map o with_num) read_number)
+      ,("headRefName", transform (Option.map o with_head_ref) read_string)
+      ,("labels", transform (Option.map o with_labels) read_labels)
+      ,("headRef",
+        read_dict
+          [("target", transform (Option.map o with_head_obj) read_obj)])]
+      (SOME empty_pr)
+
+end
+
 structure GitHub = struct
   val token = until_space (file_to_string "github-token")
   val graphql_endpoint = "https://api.github.com/graphql"
@@ -488,149 +631,6 @@ val hol_query = String.concat [
   "{repository(name: \\\"HOL\\\", owner: \\\"HOL-Theorem-Prover\\\"){",
   "ref(qualifiedName: \\\"refs/heads/master\\\") { target { ... on Commit {",
   " oid messageHeadline committedDate }}}}}" ]
-
-structure ReadJSON = struct
-
-  exception ReadFailure of string
-  fun die ls = raise (ReadFailure (String.concat ls))
-
-  type 'a basic_reader = substring -> ('a * substring)
-  type 'a reader = 'a -> 'a basic_reader
-
-  fun transform f (reader:'a basic_reader) : 'b reader
-  = fn acc => fn ss =>
-    let val (v, ss) = reader ss
-    in (f v acc, ss) end
-
-  val replace_acc : 'a basic_reader -> 'a reader =
-    fn r => transform (fn x => fn _ => x) r
-
-  fun post_read f (reader:'a basic_reader) : 'b basic_reader
-  = fn ss => let val (v, ss) = reader ss
-    in (f v, ss) end
-
-  fun read1 ss c =
-    case Substring.getc ss of SOME (c',ss) =>
-      if c = c' then ss
-      else die ["expected ",String.str c," got ",String.str c']
-    | _ => die ["expected ",String.str c," got nothing"]
-
-  val read_string : string basic_reader = fn ss =>
-    let
-      val ss = read1 ss #"\""
-      fun loop ss acc =
-        let
-          val (chunk,ss) = Substring.splitl (not o equal #"\"") ss
-          val z = Substring.size chunk
-          val (c,ss) = Substring.splitAt(ss,1)
-        in
-          if 0 < z andalso Substring.sub(chunk,z-1) = #"\\" then
-              loop ss (c::chunk::acc)
-          else
-            (Option.valOf(String.fromCString(Substring.concat(List.rev(chunk::acc)))),
-             ss)
-        end
-    in
-      loop ss []
-    end
-
-  val int_from_ss = Option.valOf o Int.fromString o Substring.string
-
-  fun bare_read_date ss =
-    let
-      val (year,ss) = Substring.splitAt(ss,4)
-      val ss = read1 ss #"-"
-      val (month,ss) = Substring.splitAt(ss,2)
-      val ss = read1 ss #"-"
-      val (day,ss) = Substring.splitAt(ss,2)
-      val ss = read1 ss #"T"
-      val (hour,ss) = Substring.splitAt(ss,2)
-      val ss = read1 ss #":"
-      val (minute,ss) = Substring.splitAt(ss,2)
-      val ss = read1 ss #":"
-      val (second,ss) = Substring.splitAt(ss,2)
-      val ss = read1 ss #"Z"
-      val date = Date.date {
-        day = int_from_ss day,
-        hour = int_from_ss hour,
-        minute = int_from_ss minute,
-        month = month_from_int (int_from_ss month),
-        offset = SOME (Time.zeroTime),
-        second = int_from_ss second,
-        year = int_from_ss year }
-    in (date, ss) end
-    handle Subscript => raise Option | ReadFailure _ => raise Option
-
-  fun read_date ss =
-    let
-      val (s, ss) = read_string ss
-      val (date, e) = bare_read_date (Substring.full s)
-      val () = if Substring.isEmpty e then () else raise Option
-    in (date, ss) end
-
-  fun read_dict (dispatch : (string * 'a reader) list) : 'a reader
-  = fn acc => fn ss =>
-    let
-      val ss = read1 ss #"{"
-      fun loop ss acc =
-        case Substring.getc ss of
-          SOME(#"}",ss) => (acc, ss)
-        | SOME(#",",ss) => loop ss acc
-        | _ =>
-          let
-            val (key, ss) = read_string ss
-            val ss = read1 ss #":"
-            val (acc, ss) = assoc key dispatch acc ss
-          in loop ss acc end
-    in loop ss acc end
-
-  fun read_opt_list read_item acc ss =
-    let
-      val ss = read1 ss #"["
-      fun loop ss acc =
-        case Substring.getc ss of
-          SOME(#"]",ss) => (List.rev acc, ss)
-        | SOME(#",",ss) => loop ss acc
-        | _ =>
-          (case read_item ss
-           of (NONE, ss) => loop ss acc
-            | (SOME v, ss) => loop ss (v::acc))
-    in loop ss acc end
-
-  fun read_list read_item acc ss = read_opt_list
-    (post_read SOME read_item) acc ss
-
-  fun mergeable_only "MERGEABLE" acc = acc
-    | mergeable_only _ _ = NONE
-
-  fun read_number ss =
-    let val (n,ss) = Substring.splitl Char.isDigit ss
-    in (int_from_ss n, ss) end
-
-  val read_obj : obj basic_reader =
-    read_dict
-      [("oid", transform with_hash read_string)
-      ,("messageHeadline", transform with_message read_string)
-      ,("committedDate", transform with_date read_date)
-      ] empty_obj
-
-  val read_label : string basic_reader = read_dict
-    [("name", replace_acc read_string)] ""
-  val read_labels = read_dict
-    [("nodes", read_list read_label)] []
-
-  val read_pr : pr option basic_reader =
-    read_dict
-      [("mergeable", transform mergeable_only read_string)
-      ,("number", transform (Option.map o with_num) read_number)
-      ,("headRefName", transform (Option.map o with_head_ref) read_string)
-      ,("labels", transform (Option.map o with_labels) read_labels)
-      ,("headRef",
-        read_dict
-          [("target", transform (Option.map o with_head_obj) read_obj)])]
-      (SOME empty_pr)
-
-end
 
 val no_test_labels = ["test failing", "no test"]
 fun is_no_test_label l = List.exists (equal l) no_test_labels
