@@ -542,26 +542,41 @@ structure GitHub = struct
 
   val upload_endpoint = "https://uploads.github.com"
 
-  fun cakeml_upload_endpoint id asset =
+  fun cakeml_upload_endpoint github_id asset =
     String.concat [
       upload_endpoint, "/repos/", github_user, "/", github_repo,
-      "/releases/", tag id, "/", "assets?name=", asset
+      "/releases/", Int.toString github_id, "/", "assets?name=", asset
     ]
 
-  fun upload_curl_cmd id asset =
+  fun upload_curl_cmd id github_id asset =
     let val asset_dir = OS.Path.concat(artefacts_dir, id)
         val asset_path = OS.Path.joinDirFile {dir=asset_dir, file=asset}
     in
       curl_cmd [
         "--header", "Content-Type: application/octet-stream",
         "--data-binary", "@" ^ asset_path,
-        cakeml_upload_endpoint id asset]
+        cakeml_upload_endpoint github_id asset]
     end
 
   val assets = ["cake-x64-64.tar.gz", "cake-x64-32.tar.gz"]
 
+  fun get_github_id id =
+    let open ReadJSON
+        val query = String.concat [
+                      "{repository(owner:\\\"", github_user, "\\\",name:\\\"",
+                      github_repo, "\\\"){", "release(tagName:\\\"", tag id,
+                      "\\\"){databaseId}}}"]
+        val response = Substring.full (graphql query)
+        val parsed = read_dict [("data", read_dict [("repository",
+                      read_dict [("release", read_dict [("databaseId",
+                        replace_acc read_number)] )] )] )] 0 response
+    in #1 parsed end
+    handle ReadJSON.ReadFailure s =>
+      cgi_die 500 ["Could not read release ID from GitHub: ", s]
+
   fun upload_assets id =
-    let val cmds = List.map (upload_curl_cmd id) assets
+    let val github_id = get_github_id id
+        val cmds = List.map (upload_curl_cmd id github_id) assets
         val responses = List.map (system_output (cgi_die 500)) cmds
     in
       List.app
