@@ -137,9 +137,6 @@ fun finish id =
     Slack.send_message message;
     Discord.send_message message;
     send_email subject (String.concat[body,"\n"]);
-    if status = Success andalso branch = "master"
-    then (GitHub.create_release f cakeml_sha hol_sha; GitHub.upload_assets f)
-    else ();
     ()
   end
 
@@ -155,6 +152,33 @@ fun abort id =
         cgi_die 500 ["job ",f, " is both finished and aborted"]
       else (OS.FileSys.rename{old = old, new = new}; Posix.IO.close fd)
     else cgi_die 409 ["job ",f," is not finished: cannot abort"]
+  end
+
+
+fun release id =
+  let
+    val f = Int.toString id
+    val fd = acquire_lock ()
+    val statusfile = OS.Path.concat("finished", f)
+    val () = if OS.FileSys.access (statusfile, [OS.FileSys.A_READ]) then ()
+             else cgi_die 409 ["job ", f, " is not finished: cannot release"]
+    val inp = TextIO.openIn statusfile
+    val snapshot = read_bare_snapshot inp
+    val cakeml_sha = get_head_sha snapshot
+    val hol_sha = get_hol_sha snapshot
+    val status = read_status inp
+    val inp = (TextIO.closeIn inp; TextIO.openIn statusfile)
+    val is_master = (case read_job_pr inp of NONE => true | _ => false)
+    val () = TextIO.closeIn inp
+    val () = Posix.IO.close fd
+  in
+    if status <> Success then
+      cgi_die 409 ["job ", f, " did not succeed: cannot release"]
+    else if not is_master then
+      cgi_die 409 ["job ", f, " was not master: cannot release"]
+    else
+      GitHub.create_release f cakeml_sha hol_sha;
+      GitHub.upload_assets f
   end
 
 fun refresh () =
@@ -226,6 +250,7 @@ in
         | (P (Upload x)) => upload x
         | (P (Finish x)) => finish x
         | (P (Abort x)) => abort x
+        | (P (Release x)) => release x
     in
       write_text_response 200 response
     end
