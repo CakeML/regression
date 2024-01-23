@@ -57,6 +57,11 @@ Reference:
       returns "Aborted"
       fails (409) if <id> is not currently finished
 
+    release id:
+      make a GitHub release for job <id>
+      returns "Released"
+      fails (409) if <id> is not releasable
+
   all failures return text starting with "Error:"
 
 Jobs move (right only) between these states:
@@ -104,6 +109,8 @@ datatype post_api =
   | Upload of id * string * int
   | Finish of id
   | Abort of id
+  | Release of id
+
 datatype api = G of get_api | P of post_api
 
 fun post_response Refresh = "Refreshed\n"
@@ -113,6 +120,7 @@ fun post_response Refresh = "Refreshed\n"
   | post_response (Abort _) = "Aborted\n"
   | post_response (Log _) = "Logged\n"
   | post_response (Upload _) = "Uploaded\n"
+  | post_response (Release _) = "Released\n"
 
 fun formdata_decode s =
   let
@@ -146,6 +154,7 @@ fun api_to_string (G Waiting) = "/waiting"
   | api_to_string (P (Append (id,_))) = String.concat["/append/",Int.toString id]
   | api_to_string (P (Finish id)) = String.concat["/finish/",Int.toString id]
   | api_to_string (P (Abort id)) = String.concat["/abort/",Int.toString id]
+  | api_to_string (P (Release id)) = String.concat["/release/",Int.toString id]
 
 fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line=",line]]
   | post_curl_args (Claim  (_,name)) = ["--data-urlencode",String.concat["name=",name]]
@@ -154,6 +163,7 @@ fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line="
   | post_curl_args (Finish _) = ["--data",""]
   | post_curl_args (Abort _) = ["--data",""]
   | post_curl_args (Refresh) = ["--data",""]
+  | post_curl_args (Release _) = ["--data",""]
 
 fun api_curl_args (G _) = []
   | api_curl_args (P p) = post_curl_args p
@@ -213,6 +223,7 @@ fun post_from_string s len =
                     (id_from_string n)
   | ["finish",n] => Option.map Finish (id_from_string n)
   | ["abort",n] => Option.map Abort (id_from_string n)
+  | ["release",n] => Option.map Release (id_from_string n)
   | _ => NONE)
 
 type bare_pr = { head_sha : string, base_sha : string }

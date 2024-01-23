@@ -20,19 +20,20 @@ fun usage_string name = String.concat[
   name, " [options]\n\n",
   "Runs waiting jobs from ",server,"/\n\n",
   "Summary of options:\n",
-  "  --no-wait   : Exit when no waiting jobs are found rather than waiting for them.\n",
-  "                Will still check for more waiting jobs after completing a job.\n",
-  "  --no-loop   : Exit after finishing a job, do not check for more waiting jobs.\n",
-  "  --select id : Ignore the waiting jobs list and instead attempt to claim job <id>.\n",
-  "  --resume id : Assume job <id> has previously been claimed by this worker and\n",
-  "                attempt to start running it again. If the job fails again,\n",
-  "                exit (even without --no-loop).\n",
-  "  --upload id : Assume this worker has just finished job <id> and upload its build\n",
-  "                artefacts (usually automatic after master succeeds), then exit.\n",
-  "  --finish id : Mark job <id> as finished, then exit.\n",
-  "  --abort id  : Mark job <id> as having aborted, i.e., finished without a proper\n",
-  "                success or failure, then exit.\n",
-  "  --refresh   : Refresh the server's waiting queue from GitHub then exit.\n"];
+  "  --no-wait    : Exit when no waiting jobs are found rather than waiting for them.\n",
+  "                 Will still check for more waiting jobs after completing a job.\n",
+  "  --no-loop    : Exit after finishing a job, do not check for more waiting jobs.\n",
+  "  --select id  : Ignore the waiting jobs list and instead attempt to claim job <id>.\n",
+  "  --resume id  : Assume job <id> has previously been claimed by this worker and\n",
+  "                 attempt to start running it again. If the job fails again,\n",
+  "                 exit (even without --no-loop).\n",
+  "  --upload id  : Assume this worker has just finished job <id> and upload its build\n",
+  "                 artefacts (usually automatic after master succeeds), then exit.\n",
+  "  --finish id  : Mark job <id> as finished, then exit.\n",
+  "  --abort id   : Mark job <id> as having aborted, i.e., finished without a proper\n",
+  "                 success or failure, then exit.\n",
+  "  --release id : Release job <id> on GitHub, then exit.\n",
+  "  --refresh    : Refresh the server's waiting queue from GitHub then exit.\n"];
 
 (*
 
@@ -494,6 +495,9 @@ fun main () =
     val () = arg_job_action "--upload" args (fn jid => fn id => (
                  diag ["Uploading artefacts for job ",jid,"."];
                  upload_artefacts (mk_CAKEMLDIR jid) id))
+    val () = arg_job_action "--release" args (fn jid => fn id => (
+               diag ["Releasing job ", jid, "on GitHub."];
+               API.post (Release id)))
     val (no_wait, args) = extract_arg "--no-wait" args
     val (no_loop, args) = extract_arg "--no-loop" args
     datatype selection_target = Resume | Select
