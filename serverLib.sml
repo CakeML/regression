@@ -119,7 +119,6 @@ type job = {
 
 val machine_date = Date.fmt "%Y-%m-%dT%H:%M:%SZ"
 val pretty_date = Date.fmt "%b %d %H:%M:%S"
-val pretty_date_moment = "MMM DD HH:mm:ss"
 fun machine_secs s = String.concat["PT",Int.toString s,"S"]
 
 fun print_claimed out (worker,date) =
@@ -719,6 +718,7 @@ fun read_last_date inp =
 val html_response_header = "Content-Type: text/html\n\n<!doctype html>"
 
 val style_href = "/regression-style.css"
+val script_href = "/regression-script.js"
 
 structure HTML = struct
   val attributes = List.map (fn (k,v) => String.concat[k,"='",v,"'"])
@@ -731,29 +731,11 @@ structure HTML = struct
   val head = element "head" []
   val meta = start_tag "meta" [("charset","utf-8")]
   val stylesheet = start_tag "link" [("rel","stylesheet"),("type","text/css"),("href",style_href)]
-  val momentjs = element "script" [("src","https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.19.1/moment.min.js")] []
-  val localisejs = element "script" [] [
-    "function localiseTimes(all) {",
-    "var ls = document.getElementsByTagName('time');",
-    "for (var i = 0; i < ls.length; i++) {",
-    "if (ls[i].getAttribute('class') == 'ago') {",
-    "ls[i].innerHTML = ' [' + moment(ls[i].getAttribute('datetime')).fromNow() + ']';}",
-    "else if (ls[i].getAttribute('class') == 'since') {",
-    "ls[i].innerHTML = '[elapsed: ' + moment(ls[i].getAttribute('datetime')).fromNow(true) + ']';}",
-    "else if (ls[i].getAttribute('class') == 'duration') {",
-    "ls[i].innerHTML = '[average: ' + moment.duration(ls[i].getAttribute('datetime')).humanize() + ']';}",
-    "else if (all) {",
-    "ls[i].innerHTML = moment(ls[i].getAttribute('datetime')).format('",
-    pretty_date_moment,"');}}}"]
-  val updatejs = element "script" [] [
-    "var upds = new EventSource('/regression-updates.cgi');",
-    "upds.onmessage = function(e) { if (location.pathname.includes('/job/' + e.data) ||",
-                                       "!(location.pathname.includes('/job/')))",
-                                    "location.reload(); };" ]
+  val scripts = element "script" [("src",script_href),("type","module")] []
   val title = elt "title" "CakeML Regression Test"
   val shortcut = start_tag "link" [("rel","shortcut icon"),("href","/cakeml-icon.png")]
-  val header = head [meta,stylesheet,title,shortcut,momentjs,localisejs,updatejs]
-  val body = element "body" [("onload","localiseTimes(true); setInterval(localiseTimes,60000,false);")]
+  val header = head [meta,stylesheet,title,shortcut,scripts]
+  val body = element "body" []
   val h2 = elt "h2"
   val h3 = elt "h3"
   val strong = elt "strong"
