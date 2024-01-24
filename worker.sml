@@ -496,7 +496,7 @@ fun main () =
                  diag ["Uploading artefacts for job ",jid,"."];
                  upload_artefacts (mk_CAKEMLDIR jid) id))
     val () = arg_job_action "--release" args (fn jid => fn id => (
-               diag ["Releasing job ", jid, "on GitHub."];
+               diag ["Releasing job ", jid, " on GitHub."];
                API.post (Release id)))
     val (no_wait, args) = extract_arg "--no-wait" args
     val (no_loop, args) = extract_arg "--no-loop" args
