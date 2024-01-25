@@ -15,14 +15,22 @@ const duration = pt => {
 
 function localiseTimes(all) {
   for (const elt of Array.from(document.getElementsByTagName('time'))) {
-    if (elt.classList.contains('ago'))
+    if (elt.classList.contains('ago')) {
+      elt.title = elt.innerText.slice(elt.innerText.indexOf('[')+1,-1)
       elt.innerText = ` [${formatDistanceToNow(elt.dateTime, optionsAgo)}]`
-    else if (elt.classList.contains('since'))
+    }
+    else if (elt.classList.contains('since')) {
+      elt.title = elt.innerText
       elt.innerText = `[elapsed: ${formatDistanceToNow(elt.dateTime)}]`
-    else if (elt.classList.contains('duration'))
+    }
+    else if (elt.classList.contains('duration')) {
+      elt.title = elt.innerText
       elt.innerText = `[average: ${formatDuration(duration(elt.dateTime))}]`
-    else if (all)
+    }
+    else if (all) {
+      elt.title = elt.innerText
       elt.innerText = format(elt.dateTime, dateFormat)
+    }
   }
 }
 
