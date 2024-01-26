@@ -1,17 +1,10 @@
 import { format } from "https://esm.sh/v135/date-fns@3.3.1/format.mjs"
 import { formatDistanceToNow } from "https://esm.sh/v135/date-fns@3.3.1/formatDistanceToNow.mjs"
-import { formatDuration } from "https://esm.sh/v135/date-fns@3.3.1/formatDuration.mjs"
-import { intervalToDuration } from "https://esm.sh/v135/date-fns@3.3.1/intervalToDuration.mjs"
 import { addSeconds } from "https://esm.sh/v135/date-fns@3.3.1/addSeconds.mjs"
 
 const dateFormat = "MMM dd HH:mm:ss"
 const optionsAgo = {addSuffix: true}
-
-const duration = pt => {
-  const s = parseInt(pt.slice(2, -1))
-  const d = new Date()
-  return intervalToDuration({start: d, end: addSeconds(d, s)})
-}
+const duration = pt => addSeconds(new Date(), parseInt(pt.slice(2, -1)))
 
 function localiseTimes(all) {
   for (const elt of Array.from(document.getElementsByTagName('time'))) {
@@ -25,7 +18,7 @@ function localiseTimes(all) {
     }
     else if (elt.classList.contains('duration')) {
       elt.title = elt.innerText
-      elt.innerText = `[average: ${formatDuration(duration(elt.dateTime))}]`
+      elt.innerText = `[average: ${formatDistanceToNow(duration(elt.dateTime))}]`
     }
     else if (all) {
       elt.title = elt.innerText
