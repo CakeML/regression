@@ -89,18 +89,19 @@ fun with_hash x (obj : obj) : obj = { hash = x, message = #message obj, date = #
 fun with_message x (obj : obj) : obj = { hash = #hash obj, message = x, date = #date obj }
 fun with_date d (obj : obj) : obj = { hash = #hash obj, message = #message obj, date = d }
 
-type pr = { num : int, head_ref : string, head_obj : obj, base_obj : obj, labels : string list }
-val empty_pr : pr = { num = 0, head_ref = "", head_obj = empty_obj, base_obj = empty_obj, labels = [] }
-fun with_num x (pr : pr) : pr = { num = x, head_ref = #head_ref pr, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = #labels pr }
-fun with_head_ref x (pr : pr) : pr = { num = #num pr, head_ref = x, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = #labels pr }
-fun with_head_obj x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_obj = x, base_obj = #base_obj pr, labels = #labels pr }
-fun with_base_obj x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_obj = #head_obj pr, base_obj = x, labels = #labels pr }
-fun with_labels x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = x }
+type pr = { num : int, head_ref : string, head_owner : string, head_obj : obj, base_obj : obj, labels : string list }
+val empty_pr : pr = { num = 0, head_ref = "", head_owner = "", head_obj = empty_obj, base_obj = empty_obj, labels = [] }
+fun with_num x (pr : pr) : pr = { num = x, head_ref = #head_ref pr, head_owner = #head_owner pr, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = #labels pr }
+fun with_head_ref x (pr : pr) : pr = { num = #num pr, head_ref = x, head_owner = #head_owner pr, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = #labels pr }
+fun with_head_owner x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_owner = x, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = #labels pr }
+fun with_head_obj x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_owner = #head_owner pr, head_obj = x, base_obj = #base_obj pr, labels = #labels pr }
+fun with_base_obj x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_owner = #head_owner pr, head_obj = #head_obj pr, base_obj = x, labels = #labels pr }
+fun with_labels x (pr : pr) : pr = { num = #num pr, head_ref = #head_ref pr, head_owner = #head_owner pr, head_obj = #head_obj pr, base_obj = #base_obj pr, labels = x }
 
 datatype integration = Branch of string * obj | PR of pr
 type snapshot = { cakeml : integration, hol : obj }
 
-fun bare_of_pr ({num,head_ref,head_obj,base_obj,labels}:pr) : bare_pr =
+fun bare_of_pr ({num,head_ref,head_owner,head_obj,base_obj,labels}:pr) : bare_pr =
   {head_sha = #hash head_obj, base_sha = #hash base_obj}
 fun bare_of_integration (Branch (_,obj)) = Bbr (#hash obj)
   | bare_of_integration (PR pr) = Bpr (bare_of_pr pr)
@@ -148,9 +149,12 @@ fun print_snapshot out (s:snapshot) =
     val () =
       case #cakeml s of
         Branch (head_ref,base_obj) => print_obj base_obj
-      | PR {num,head_ref,head_obj,base_obj,labels} => (
+      | PR {num,head_ref,head_owner,head_obj,base_obj,labels} => (
                print_obj head_obj;
-               prl ["#", Int.toString num, " (", head_ref, ")\nMerging into: "];
+               prl ["#", Int.toString num, " (",
+                    if head_owner = github_user then head_ref
+                    else head_owner ^ ":" ^ head_ref,
+                    ")\nMerging into: "];
                print_obj base_obj
              )
     val () = pr "HOL: "
@@ -448,12 +452,15 @@ structure ReadJSON = struct
     [("name", replace_acc read_string)] ""
   val read_labels = read_dict
     [("nodes", read_list read_label)] []
+  val read_repo_owner : string basic_reader =
+    read_dict [("login", replace_acc read_string)] ""
 
   val read_pr : pr option basic_reader =
     read_dict
       [("mergeable", transform mergeable_only read_string)
       ,("number", transform (Option.map o with_num) read_number)
       ,("headRefName", transform (Option.map o with_head_ref) read_string)
+      ,("headRepositoryOwner", transform (Option.map o with_head_owner) read_repo_owner)
       ,("labels", transform (Option.map o with_labels) read_labels)
       ,("headRef",
         read_dict
@@ -636,6 +643,7 @@ val cakeml_query = String.concat [
   "pullRequests(baseRefName: \\\"master\\\", first: 100, states: [OPEN]",
   " orderBy: {field: CREATED_AT, direction: DESC}){",
   " nodes { mergeable number headRefName",
+  " headRepositoryOwner { login }",
   " labels(first: 100) { nodes { name } }",
   " headRef { target { ... on Commit {",
   " oid messageHeadline committedDate }}}",
