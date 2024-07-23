@@ -13,6 +13,9 @@ structure utilLib = struct
       if x >= y then x::y::xs
       else y::(insert x xs)
 
+  fun take n [] = []
+    | take n (x::xs) = if n <= 0 then [] else x :: take (n - 1) xs;
+
   val until_space =
     Substring.string o Substring.takel (not o Char.isSpace) o Substring.full
 
