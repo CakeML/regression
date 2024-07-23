@@ -962,9 +962,9 @@ in
             (* val pad = CharVector.tabulate(max_dir_length - String.size dir,(fn _ => #" ")) *)
             val (l,r) = Substring.splitAt (Substring.full time_part,6)
             val files =
-              List.map (fn id => OS.Path.concat("running",Int.toString id)) (running()) @
               List.map (fn id => OS.Path.concat("finished",Int.toString id)) (finished())
-            val (t,fs) = timings_of_dir dir files
+            val recent_files = take 100 (List.rev files)
+            val (t,fs) = timings_of_dir dir recent_files
             val average = if List.null fs then [] else [" ",duration(Int.quot(t,List.length fs))]
             val line = String.concat [
               time_part, prefix, dir, " ",
