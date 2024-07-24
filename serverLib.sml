@@ -963,7 +963,7 @@ in
             val (l,r) = Substring.splitAt (Substring.full time_part,6)
             val files =
               List.map (fn id => OS.Path.concat("finished",Int.toString id)) (finished())
-            val recent_files = take 100 (List.rev files)
+            val recent_files = take 100 files
             val (t,fs) = timings_of_dir dir recent_files
             val average = if List.null fs then [] else [" ",duration(Int.quot(t,List.length fs))]
             val line = String.concat [
