@@ -564,7 +564,7 @@ structure GitHub = struct
         cakeml_upload_endpoint github_id asset]
     end
 
-  val assets = ["cake-x64-64.tar.gz", "cake-x64-32.tar.gz"]
+  val assets = ["cake-x64-64.tar.gz", "cake-x64-32.tar.gz", "cake-arm8-64.tar.gz"]
 
   fun get_github_id id =
     let open ReadJSON
