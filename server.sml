@@ -123,8 +123,9 @@ fun finish id =
     val hol_sha = get_hol_sha snapshot
     val status = read_status inp
     val inp = (TextIO.closeIn inp; TextIO.openIn new)
+    val job_pr = read_job_pr inp
     val branch =
-      case read_job_pr inp of
+      case job_pr of
         NONE => "master"
       | SOME (_, branch) => Substring.string (trim_ws branch)
     val subject = String.concat[status_to_string status,": Job ",f," ",branch]
@@ -135,7 +136,7 @@ fun finish id =
     Posix.IO.close fd;
     GitHub.set_status f cakeml_sha status;
     Slack.send_message message;
-    Discord.send_message message;
+    Discord.send_message (Discord.compose_message f status job_pr);
     send_email subject (String.concat[body,"\n"]);
     ()
   end

@@ -620,8 +620,41 @@ structure Discord = struct
     "--request","POST",
     "--header","Content-type: application/json;charset=utf-8",
     "--write-out","%{http_code}",
-    "--data",String.concat["{\"content\":\"",text,"\", \"flags\":4}"],
+    "--data",text,
     String.concat [postMessage_endpoint, discord_webhook]])
+
+  fun compose_message id status job_pr =
+    let
+      val status_str = String.map Char.toLower (status_to_string status)
+      val url = String.concat [server, "/job/", id]
+      val color =
+        case status of
+          Success => "8311585" (* green *)
+        | Failure => "13632027" (* red *)
+        | Aborted => "16098851" (* orange *)
+        | Pending =>
+            cgi_die 500 ["Error composing Discord message: job ", id, " was pending"]
+      fun pr_md_link pr =
+        let val pr_no = extract_prefix_trimr "#" pr
+            val pull_url = String.concat [cakeml_github, "/pull/", pr_no]
+        in String.concat ["[#", pr_no, "](", pull_url, ")"] end
+      val description =
+        case job_pr of
+          NONE => "On master"
+        | SOME (pr, branch) =>
+            String.concatWith " " ["Pull request", pr_md_link (Substring.string pr),
+                                   Substring.string (trim_ws branch)]
+    in
+      String.concat [
+        "{\"embeds\": [{",
+          "\"title\": \"Job ", id, ": ", status_str, "\",",
+          "\"description\": \"", description, "\",",
+          "\"url\": \"", url, "\",",
+          "\"color\": ", color,
+        "}]}"
+      ]
+    end
+
   fun send_message text =
     let
       val text = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) text
