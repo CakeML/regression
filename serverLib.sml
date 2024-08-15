@@ -644,6 +644,7 @@ structure Discord = struct
         | SOME (pr, branch) =>
             String.concatWith " " ["Pull request", pr_md_link (Substring.string pr),
                                    Substring.string (trim_ws branch)]
+      val description = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) description
     in
       String.concat [
         "{\"embeds\": [{",
@@ -657,7 +658,6 @@ structure Discord = struct
 
   fun send_message text =
     let
-      val text = String.translate (fn c => if c = #"\"" then "&quot;" else String.str c) text
       val cmd = postMessage_curl_cmd text
       val response = system_output (cgi_die 500) cmd
     in
