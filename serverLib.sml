@@ -667,6 +667,56 @@ structure Discord = struct
     end
 end
 
+structure Zulip = struct
+  val zulip_apikey = until_space (file_to_string "zulip-apikey")
+  val postMessage_endpoint = "https://hol.zulipchat.com/api/v1/messages"
+  fun postMessage_curl_cmd text = (curl_path,["--silent","--show-error",
+    "--request","POST",
+    "--user",String.concat["regression-bot@hol.zulipchat.com:",zulip_apikey],
+    "--user-agent","CakeML-Regression-Server",
+    "--write-out","%{http_code}",
+    "--data-urlencode","type=stream",
+    "--data-urlencode","to=Notifications",
+    "--data-urlencode","topic=Regression",
+    "--data-urlencode",String.concat["content=",text],
+    postMessage_endpoint])
+
+  fun compose_message id status job_pr =
+    let
+      val status_str = String.map Char.toLower (status_to_string status)
+      val url = String.concat [server, "/job/", id]
+      val emoji =
+        case status of
+          Success => ":check:"
+        | Failure => ":cross_mark:"
+        | Aborted => ":orange_circle:"
+        | Pending =>
+            cgi_die 500 ["Error composing Zulip message: job ", id, " was pending"]
+      fun pr_md_link pr =
+        let val pr_no = extract_prefix_trimr "#" pr
+            val pull_url = String.concat [cakeml_github, "/pull/", pr_no]
+        in String.concat ["[#", pr_no, "](", pull_url, ")"] end
+      val description =
+        case job_pr of
+          NONE => "On master"
+        | SOME (pr, branch) =>
+            String.concatWith " " ["Pull request", pr_md_link (Substring.string pr),
+                                   Substring.string (trim_ws branch)]
+    in
+      String.concat ["[Job ",id,"](",url,"): ",status_str," ",emoji,"\n",description]
+    end
+
+  fun send_message text =
+    let
+      val cmd = postMessage_curl_cmd text
+      val response = system_output (cgi_die 500) cmd
+    in
+      cgi_assert
+        (String.isPrefix "204" response)
+        500 ["Error sending Zulip message\n",response]
+    end
+end
+
 (* We ask for the first 100 PRs/labels below. GitHub requires some
    limit. We don't expect to hit 100. *)
 val cakeml_query = String.concat [

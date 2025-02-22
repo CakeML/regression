@@ -1,6 +1,7 @@
 *-token
 custom-uri
 discord-webhook
+zulip-apikey
 poll
 api
 worker

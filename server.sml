@@ -136,7 +136,7 @@ fun finish id =
     Posix.IO.close fd;
     GitHub.set_status f cakeml_sha status;
     Slack.send_message message;
-    Discord.send_message (Discord.compose_message f status job_pr);
+    Zulip.send_message (Zulip.compose_message f status job_pr);
     send_email subject (String.concat[body,"\n"]);
     ()
   end
