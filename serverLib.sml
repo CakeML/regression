@@ -669,6 +669,7 @@ end
 
 structure Zulip = struct
   val zulip_apikey = until_space (file_to_string "zulip-apikey")
+  val zulip_stream = until_space (file_to_string "zulip-stream")
   val postMessage_endpoint = "https://hol.zulipchat.com/api/v1/messages"
   fun postMessage_curl_cmd text = (curl_path,["--silent","--show-error",
     "--request","POST",
@@ -676,7 +677,7 @@ structure Zulip = struct
     "--user-agent","CakeML-Regression-Server",
     "--write-out","%{http_code}",
     "--data-urlencode","type=stream",
-    "--data-urlencode","to=Notifications",
+    "--data-urlencode",String.concat["to=",zulip_stream],
     "--data-urlencode","topic=Regression",
     "--data-urlencode",String.concat["content=",text],
     postMessage_endpoint])

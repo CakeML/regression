@@ -2,6 +2,7 @@
 custom-uri
 discord-webhook
 zulip-apikey
+zulip-stream
 poll
 api
 worker
