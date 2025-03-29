@@ -735,7 +735,7 @@ val cakeml_query = String.concat [
 
 val hol_query = String.concat [
   "{repository(name: \\\"HOL\\\", owner: \\\"HOL-Theorem-Prover\\\"){",
-  "ref(qualifiedName: \\\"refs/heads/master\\\") { target { ... on Commit {",
+  "ref(qualifiedName: \\\"refs/heads/mcandidate\\\") { target { ... on Commit {",
   " oid messageHeadline committedDate }}}}}" ]
 
 val no_test_labels = ["test failing", "no test"]
