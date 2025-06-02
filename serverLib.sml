@@ -711,9 +711,12 @@ structure Zulip = struct
     let
       val cmd = postMessage_curl_cmd text
       val response = system_output (cgi_die 500) cmd
+      val response_lines = String.tokens (fn x => x = #"\n") response
     in
       cgi_assert
-        (String.isPrefix "204" response)
+        (List.exists (String.isPrefix "204") response_lines orelse
+         List.exists (String.isPrefix "200") response_lines
+        )
         500 ["Error sending Zulip message\n",response]
     end
 end
