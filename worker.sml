@@ -190,7 +190,7 @@ val artefacts_file = OS.Path.concat("developers","artefacts")
 
 val git_path = "/usr/bin/git"
 fun git_reset sha = (git_path,["reset","--hard","--quiet",sha])
-val git_fetch = (git_path,["fetch","origin"])
+val git_fetch = (git_path,["fetch","origin","+refs/heads/*:refs/heads/*"])
 val git_fetch_all = (git_path,["fetch","--prune","origin","+refs/heads/*:refs/heads/*","+refs/pull/*/head:refs/pull/*/head"])
 fun git_sha_of head = (git_path,["rev-parse","--verify",head])
 val git_head = git_sha_of "HEAD"
