@@ -736,15 +736,19 @@ val cakeml_query = String.concat [
   " oid messageHeadline committedDate }}}",
   "}}}}" ]
 
-val hol_query = String.concat [
+fun hol_query_for_branch br = String.concat [
   "{repository(name: \\\"HOL\\\", owner: \\\"HOL-Theorem-Prover\\\"){",
-  "ref(qualifiedName: \\\"refs/heads/mcandidate\\\") { target { ... on Commit {",
+  "ref(qualifiedName: \\\"refs/heads/", br, "\\\") { target { ... on Commit {",
   " oid messageHeadline committedDate }}}}}" ]
 
 val no_test_labels = ["test failing", "no test"]
 fun is_no_test_label l = List.exists (equal l) no_test_labels
 fun do_test (PR pr) = not (List.exists is_no_test_label (#labels pr))
   | do_test _ = true
+
+fun needs_mcandidate (PR pr) = (#head_ref pr = "mcandidate-fix")
+  | needs_mcandidate (Branch (name,_)) = (name = "master" orelse
+                                          name = "mcandidate-fix")
 
 fun read_cakeml_integrations response = let
     open ReadJSON
@@ -778,22 +782,31 @@ in
   fun get_current_snapshots () : snapshot list =
     let
       val response = GitHub.graphql cakeml_query
-      val cakeml_integrations = List.filter do_test
-        (read_cakeml_integrations response)
-      val response = GitHub.graphql hol_query
-      val (hol_obj,ss) =
-        read_dict
-        [("data",
-          read_dict
-          [("repository",
+      val cakeml_integrations = List.rev (List.filter do_test
+        (read_cakeml_integrations response)) (* after rev: oldest pull request first, master last *)
+      val (cakeml_mcandidates, cakeml_masters) =
+        List.partition needs_mcandidate cakeml_integrations
+      fun get_hol_obj_for_branch br =
+        let
+          val response = GitHub.graphql (hol_query_for_branch br)
+          val (hol_obj,ss) =
             read_dict
-            [("ref",
+            [("data",
               read_dict
-              [("target", replace_acc read_obj)])])])]
-        empty_obj (Substring.full response)
+              [("repository",
+                read_dict
+                [("ref",
+                  read_dict
+                  [("target", replace_acc read_obj)])])])]
+            empty_obj (Substring.full response)
+        in hol_obj end
+      fun get_snapshots_for ls br =
+        if List.null ls then [] else
+        let val hol_obj = get_hol_obj_for_branch br
+        in List.map (fn i => { cakeml = i, hol = hol_obj }) ls end
     in
-      List.map (fn i => { cakeml = i, hol = hol_obj } )
-        (List.rev cakeml_integrations) (* after rev: oldest pull request first, master last *)
+      get_snapshots_for cakeml_masters "master" @
+      get_snapshots_for cakeml_mcandidates "mcandidate"
     end
     handle ReadFailure s => cgi_die 500 ["Could not read response from GitHub: ",s]
 end
