@@ -29,7 +29,7 @@ Current snapshots from GitHub:
           - the pull request commit (head)
           - the master commit to merge into (base)
     HOL:
-      - branch "mcandidate"
+      - branch "master"
 *)
 use "serverLib.sml";
 
