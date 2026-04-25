@@ -156,7 +156,7 @@ fun abort id =
   end
 
 
-fun release id =
+fun release (id, notes) =
   let
     val f = Int.toString id
     val fd = acquire_lock ()
@@ -178,7 +178,7 @@ fun release id =
     else if not is_master then
       cgi_die 409 ["job ", f, " was not master: cannot release"]
     else
-      GitHub.create_release f cakeml_sha hol_sha;
+      GitHub.create_release f cakeml_sha hol_sha notes;
       GitHub.upload_assets f
   end
 

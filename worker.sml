@@ -32,7 +32,8 @@ fun usage_string name = String.concat[
   "  --finish id  : Mark job <id> as finished, then exit.\n",
   "  --abort id   : Mark job <id> as having aborted, i.e., finished without a proper\n",
   "                 success or failure, then exit.\n",
-  "  --release id : Release job <id> on GitHub, then exit.\n",
+  "  --release id [notes.md] : Release job <id> on GitHub, then exit.\n",
+  "                 Optional notes.md is a local file whose contents become the release body.\n",
   "  --refresh    : Refresh the server's waiting queue from GitHub then exit.\n"];
 
 (*
@@ -495,9 +496,20 @@ fun main () =
     val () = arg_job_action "--upload" args (fn jid => fn id => (
                  diag ["Uploading artefacts for job ",jid,"."];
                  upload_artefacts (mk_CAKEMLDIR jid) id))
-    val () = arg_job_action "--release" args (fn jid => fn id => (
-               diag ["Releasing job ", jid, " on GitHub."];
-               API.post (Release id)))
+    val () = (case args of
+        ["--release", jid] =>
+          (case Int.fromString jid of
+             SOME id => (diag ["Releasing job ", jid, " on GitHub."];
+                         API.post (Release(id, ""));
+                         OS.Process.exit OS.Process.success)
+           | NONE => die ["Invalid argument after --release: ", jid])
+      | ["--release", jid, file] =>
+          (case Int.fromString jid of
+             SOME id => (diag ["Releasing job ", jid, " on GitHub."];
+                         API.post (Release(id, file_to_string file));
+                         OS.Process.exit OS.Process.success)
+           | NONE => die ["Invalid argument after --release: ", jid])
+      | _ => ())
     val (no_wait, args) = extract_arg "--no-wait" args
     val (no_loop, args) = extract_arg "--no-loop" args
     datatype selection_target = Resume | Select

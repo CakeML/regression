@@ -494,13 +494,20 @@ structure GitHub = struct
 
   fun tag id = "v" ^ id
 
-  fun release_json id cakeml_sha hol_sha =
+  fun json_escape s =
+    String.translate
+      (fn #"\"" => "\\\"" | #"\\" => "\\\\" | #"\n" => "\\n" | #"\r" => "\\r"
+        | c => String.str c) s
+
+  fun release_json id cakeml_sha hol_sha notes =
     String.concat [
       "{\"tag_name\":\"", tag id, "\",",
       "\"target_commitish\":\"", cakeml_sha, "\",",
       "\"name\":\"", "CakeML ", tag id, "\",",
       "\"body\":\"Corresponding HOL commit: HOL-Theorem-Prover/HOL@",
-                  hol_sha, "\"}"
+                  hol_sha,
+      if notes = "" then "" else "\\n\\n" ^ json_escape notes,
+      "\"}"
     ]
 
   val rest_endpoint = "https://api.github.com"
@@ -536,9 +543,9 @@ structure GitHub = struct
         500 ["Error setting GitHub commit status\n",response]
     end
 
-  fun create_release id cakeml_sha hol_sha =
+  fun create_release id cakeml_sha hol_sha notes =
     let val cmd = rest_curl_cmd cakeml_release_endpoint
-                    (release_json id cakeml_sha hol_sha)
+                    (release_json id cakeml_sha hol_sha notes)
         val response = system_output (cgi_die 500) cmd
     in
       cgi_assert
