@@ -109,7 +109,7 @@ datatype post_api =
   | Upload of id * string * int
   | Finish of id
   | Abort of id
-  | Release of id
+  | Release of id * string (* release notes text, may be empty *)
 
 datatype api = G of get_api | P of post_api
 
@@ -154,7 +154,7 @@ fun api_to_string (G Waiting) = "/waiting"
   | api_to_string (P (Append (id,_))) = String.concat["/append/",Int.toString id]
   | api_to_string (P (Finish id)) = String.concat["/finish/",Int.toString id]
   | api_to_string (P (Abort id)) = String.concat["/abort/",Int.toString id]
-  | api_to_string (P (Release id)) = String.concat["/release/",Int.toString id]
+  | api_to_string (P (Release (id,_))) = String.concat["/release/",Int.toString id]
 
 fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line=",line]]
   | post_curl_args (Claim  (_,name)) = ["--data-urlencode",String.concat["name=",name]]
@@ -163,7 +163,7 @@ fun post_curl_args (Append (_,line)) = ["--data-urlencode",String.concat["line="
   | post_curl_args (Finish _) = ["--data",""]
   | post_curl_args (Abort _) = ["--data",""]
   | post_curl_args (Refresh) = ["--data",""]
-  | post_curl_args (Release _) = ["--data",""]
+  | post_curl_args (Release (_,notes)) = ["--data-urlencode",String.concat["notes=",notes]]
 
 fun api_curl_args (G _) = []
   | api_curl_args (P p) = post_curl_args p
@@ -223,7 +223,10 @@ fun post_from_string s len =
                     (id_from_string n)
   | ["finish",n] => Option.map Finish (id_from_string n)
   | ["abort",n] => Option.map Abort (id_from_string n)
-  | ["release",n] => Option.map Release (id_from_string n)
+  | ["release",n] => Option.mapPartial
+                    (fn id => Option.map (fn s => Release(id,s))
+                              (Option.mapPartial (read_query "notes") len))
+                    (id_from_string n)
   | _ => NONE)
 
 type bare_pr = { head_sha : string, base_sha : string }
