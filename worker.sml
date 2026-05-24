@@ -325,7 +325,7 @@ in
       val holdir = OS.Path.concat(root,HOLDIR)
       val holmake_cmd =
         String.concat["TERM= HOLDIR='",holdir,"' /usr/bin/time ",time_options,
-                      " '",holdir,"/bin/Holmake' --qof"]
+                      " '",holdir,"/bin/Holmake' --qof --no-cache"]
       val cakemldir = OS.Path.concat(root,CAKEMLDIR)
       val () = OS.FileSys.chDir CAKEMLDIR
                handle e as OS.SysErr _ => die ["Failed to enter ",CAKEMLDIR,
