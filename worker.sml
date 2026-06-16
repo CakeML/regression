@@ -279,7 +279,7 @@ in
       val configured =
         reused orelse system_capture id configure_hol
       val built = configured andalso
-                  system_capture_append id "bin/build --nograph"
+                  system_capture_append id "bin/build --no-helpdocs"
       val () = OS.FileSys.chDir OS.Path.parentArc
       val () = if built then () else
                (API.post (Append (id, "FAILED: building HOL"));
