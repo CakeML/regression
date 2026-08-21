@@ -499,13 +499,46 @@ structure GitHub = struct
       (fn #"\"" => "\\\"" | #"\\" => "\\\\" | #"\n" => "\\n" | #"\r" => "\\r"
         | c => String.str c) s
 
-  fun release_json id cakeml_sha hol_sha notes =
+  val hol_tags_query = String.concat [
+    "{repository(name: \\\"HOL\\\", owner: \\\"HOL-Theorem-Prover\\\"){",
+    "refs(refPrefix: \\\"refs/tags/\\\", first: 100,",
+    " orderBy: {field: TAG_COMMIT_DATE, direction: DESC}){",
+    " nodes { name target { oid ... on Tag { target { oid } } } } }}}" ]
+
+  (* the tag name of a tag pointing at sha, if there is one *)
+  fun hol_tag_for_sha sha =
+    let
+      open ReadJSON
+      val read_oid = read_dict [("oid", replace_acc read_string)] ""
+      (* for an annotated tag, "target" peels the tag object to its commit *)
+      val read_target = read_dict
+        [("oid", replace_acc read_string)
+        ,("target", replace_acc read_oid)] ""
+      val read_ref = read_dict
+        [("name", transform (fn n => fn (_,c) => (n,c)) read_string)
+        ,("target", transform (fn c => fn (n,_) => (n,c)) read_target)] ("","")
+      val response = Substring.full (graphql hol_tags_query)
+      val (tags,_) =
+        read_dict [("data", read_dict [("repository",
+          read_dict [("refs", read_dict [("nodes",
+            read_list read_ref)])])])] [] response
+    in
+      Option.map #1 (List.find (fn (_,oid) => oid = sha) tags)
+    end
+    handle ReadJSON.ReadFailure _ => NONE | Match => NONE
+
+  fun hol_release_ref hol_sha =
+    case hol_tag_for_sha hol_sha of
+      SOME t => String.concat ["[", t, "](", hol_github, "/commit/", hol_sha, ")"]
+    | NONE => String.concat ["HOL-Theorem-Prover/HOL@", hol_sha]
+
+  fun release_json id cakeml_sha hol_ref notes =
     String.concat [
       "{\"tag_name\":\"", tag id, "\",",
       "\"target_commitish\":\"", cakeml_sha, "\",",
       "\"name\":\"", "CakeML ", tag id, "\",",
-      "\"body\":\"Corresponding HOL commit: HOL-Theorem-Prover/HOL@",
-                  hol_sha,
+      "\"body\":\"Corresponding HOL commit: ",
+                  json_escape hol_ref,
       if notes = "" then "" else "\\n\\n" ^ json_escape notes,
       "\"}"
     ]
@@ -545,7 +578,7 @@ structure GitHub = struct
 
   fun create_release id cakeml_sha hol_sha notes =
     let val cmd = rest_curl_cmd cakeml_release_endpoint
-                    (release_json id cakeml_sha hol_sha notes)
+                    (release_json id cakeml_sha (hol_release_ref hol_sha) notes)
         val response = system_output (cgi_die 500) cmd
     in
       cgi_assert
